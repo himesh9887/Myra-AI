@@ -1,0 +1,353 @@
+QMainWindow {
+    background-color: #040914;
+}
+
+QFrame#ShellFrame {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 1,
+        stop: 0 #08111d,
+        stop: 0.45 #0d1c31,
+        stop: 1 #102849
+    );
+    border: 1px solid rgba(88, 173, 245, 0.14);
+    border-radius: 28px;
+}
+
+QFrame#TopCard,
+QFrame#SidebarPanel,
+QFrame#CenterPanel,
+QFrame#ChatPanel,
+QFrame#FooterBar,
+QFrame#MicShell,
+QFrame#DiagnosticsCard,
+QFrame#StatCard {
+    background-color: rgba(8, 15, 28, 0.78);
+    border: 1px solid rgba(88, 165, 234, 0.12);
+    border-radius: 20px;
+}
+
+QLabel#BrandLabel {
+    color: #f7fbff;
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: 3px;
+}
+
+QLabel#TaglineLabel {
+    color: #7ea7c8;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+QLabel#StatusDot {
+    background-color: #4dd2ff;
+    border-radius: 5px;
+}
+
+QLabel#StatusIndicator {
+    color: #eef8ff;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+QLabel#StatusIndicator[state="online"] {
+    color: #d8e4ef;
+}
+
+QLabel#StatusIndicator[state="listening"] {
+    color: #61d8ff;
+}
+
+QLabel#StatusIndicator[state="processing"] {
+    color: #be94ff;
+}
+
+QLabel#StatusIndicator[state="speaking"] {
+    color: #89e8ff;
+}
+
+QLabel#StatusIndicator[state="error"] {
+    color: #ff8d8d;
+}
+
+QLabel#ClockLabel,
+QLabel#BatteryLabel {
+    color: #e6f2ff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background-color: rgba(9, 22, 39, 0.9);
+    border: 1px solid rgba(84, 152, 219, 0.1);
+}
+
+QPushButton#WindowButton {
+    min-width: 32px;
+    max-width: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    background-color: rgba(10, 25, 43, 0.92);
+    color: #eef8ff;
+    border: 1px solid rgba(88, 166, 236, 0.12);
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+QPushButton#WindowButton:hover {
+    background-color: rgba(20, 42, 72, 0.96);
+}
+
+QLabel#StatTitle,
+QLabel#SectionMiniTitle,
+QLabel#BubbleTime {
+    color: #81aacb;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+QLabel#StatValue,
+QLabel#BubbleTitle {
+    color: #f7fbff;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+QLabel#BubbleTitle {
+    font-size: 12px;
+}
+
+QLabel#HeroTitle,
+QLabel#SectionTitle {
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 800;
+}
+
+QLabel#BodyLabel,
+QLabel#BubbleBody,
+QLabel#SidebarNote {
+    color: #aac6de;
+    font-size: 13px;
+}
+
+QLabel#BubbleBody {
+    color: #edf8ff;
+    line-height: 1.35;
+}
+
+QLabel#SidebarNote {
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+QLabel#InfoBanner {
+    color: #e1f6ff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background-color: rgba(10, 26, 47, 0.88);
+    border: 1px solid rgba(84, 166, 238, 0.14);
+}
+
+QLabel#InfoBanner[level="error"] {
+    background-color: rgba(74, 18, 18, 0.92);
+    border: 1px solid rgba(255, 109, 109, 0.24);
+}
+
+QLabel#ActivityLabel,
+QLabel#HistoryHint {
+    color: #93b6d1;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QFrame#DividerLine {
+    background-color: rgba(81, 154, 221, 0.18);
+    border: none;
+}
+
+QFrame#MicCore {
+    background: qradialgradient(
+        cx: 0.5, cy: 0.5, radius: 0.9,
+        fx: 0.5, fy: 0.5,
+        stop: 0 rgba(85, 208, 255, 0.25),
+        stop: 0.56 rgba(20, 72, 115, 0.26),
+        stop: 1 rgba(5, 11, 20, 0.06)
+    );
+    border: 1px solid rgba(103, 206, 255, 0.2);
+    border-radius: 100px;
+}
+
+QLabel#MicLabel {
+    color: #f4fbff;
+    font-size: 76px;
+    font-weight: 800;
+}
+
+QFrame#WavePanel {
+    background-color: rgba(4, 11, 21, 0.86);
+    border: 1px solid rgba(74, 145, 213, 0.12);
+    border-radius: 16px;
+}
+
+QFrame#WaveBar1,
+QFrame#WaveBar2,
+QFrame#WaveBar3,
+QFrame#WaveBar4,
+QFrame#WaveBar5 {
+    background-color: #60d8ff;
+    border-radius: 5px;
+    min-height: 16px;
+}
+
+QLabel#PromptCard,
+QLabel#TelemetryChip,
+QLabel#MetaPill {
+    color: #e8f6ff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 9px 11px;
+    border-radius: 12px;
+    background-color: rgba(10, 24, 43, 0.92);
+    border: 1px solid rgba(79, 149, 215, 0.12);
+}
+
+QLabel#PromptCard {
+    font-size: 12px;
+}
+
+QPushButton#QuickActionButton {
+    min-height: 54px;
+    background-color: rgba(10, 24, 43, 0.94);
+    color: #eef8ff;
+    border: 1px solid rgba(83, 160, 230, 0.12);
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 800;
+    text-align: center;
+    padding: 8px;
+}
+
+QPushButton#QuickActionButton:hover {
+    background-color: rgba(18, 39, 67, 0.98);
+    border: 1px solid rgba(108, 204, 255, 0.2);
+}
+
+QListWidget#HistoryList {
+    background-color: rgba(4, 9, 19, 0.92);
+    border: 1px solid rgba(74, 145, 213, 0.14);
+    border-radius: 16px;
+    padding: 10px;
+}
+
+QListWidget#HistoryList::item {
+    background: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+QListWidget#HistoryList::item:selected {
+    background: transparent;
+}
+
+QListWidget#HistoryList QScrollBar:vertical {
+    width: 8px;
+    background: rgba(5, 12, 22, 0.5);
+    border-radius: 4px;
+    margin: 6px 3px 6px 0;
+}
+
+QListWidget#HistoryList QScrollBar::handle:vertical {
+    background: rgba(74, 170, 242, 0.34);
+    border-radius: 4px;
+    min-height: 28px;
+}
+
+QListWidget#HistoryList QScrollBar::add-line:vertical,
+QListWidget#HistoryList QScrollBar::sub-line:vertical,
+QListWidget#HistoryList QScrollBar::add-page:vertical,
+QListWidget#HistoryList QScrollBar::sub-page:vertical {
+    background: transparent;
+    height: 0;
+}
+
+QFrame#UserBubble,
+QFrame#AssistantBubble {
+    border-radius: 18px;
+}
+
+QFrame#UserBubble {
+    background-color: rgba(28, 100, 171, 0.92);
+    border: 1px solid rgba(90, 198, 255, 0.16);
+}
+
+QFrame#AssistantBubble {
+    background-color: rgba(8, 22, 40, 0.98);
+    border: 1px solid rgba(76, 145, 213, 0.12);
+}
+
+QLineEdit#CommandInput {
+    background-color: rgba(5, 12, 23, 0.96);
+    color: #f4fbff;
+    border: 1px solid rgba(83, 161, 241, 0.16);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 13px;
+}
+
+QLineEdit#CommandInput:focus {
+    border: 1px solid rgba(120, 212, 255, 0.48);
+}
+
+QPushButton {
+    color: #f7fbff;
+    font-size: 12px;
+    font-weight: 800;
+    border-radius: 14px;
+    padding: 10px 15px;
+    border: 1px solid rgba(95, 181, 252, 0.14);
+}
+
+QPushButton#PrimaryButton {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 #176cbc,
+        stop: 1 #20a7e7
+    );
+}
+
+QPushButton#PrimaryButton:hover {
+    background-color: #2cb1f4;
+}
+
+QPushButton#SecondaryButton {
+    background-color: rgba(10, 24, 43, 0.96);
+}
+
+QPushButton#SecondaryButton:hover {
+    background-color: rgba(18, 39, 67, 0.98);
+}
+
+QCheckBox {
+    color: #d4e8fb;
+    font-size: 12px;
+    font-weight: 700;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 15px;
+    height: 15px;
+    border-radius: 7px;
+    border: 1px solid rgba(105, 191, 255, 0.2);
+    background-color: rgba(5, 14, 25, 0.94);
+}
+
+QCheckBox::indicator:checked {
+    background-color: #35c0ff;
+}
