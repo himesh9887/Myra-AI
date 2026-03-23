@@ -1,0 +1,23 @@
+# Secrets and local environment overrides
+MYRA-AI/.env
+MYRA-AI/.env.*
+!MYRA-AI/.env.example
+
+# Python bytecode and local virtual environments
+**/__pycache__/
+**/*.py[cod]
+MYRA-AI/venv/
+MYRA-AI/.venv/
+
+# Local browser/runtime artifacts
+MYRA-AI/.myra_chrome/
+MYRA-AI/temp/
+MYRA-AI/captures/
+MYRA-AI/screenshot_*.png
+MYRA-AI/@AutomationLog.txt
+MYRA-AI/PyWhatKit_DB.txt
+
+# Local state and personal data
+MYRA-AI/memory.json
+MYRA-AI/memory/*.json
+MYRA-AI/myra_contacts.json

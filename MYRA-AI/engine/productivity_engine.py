@@ -15,29 +15,29 @@ class ProductivityEngine:
         if note_match:
             text = note_match.group(1).strip()
             if not self.memory.save_note(text):
-                return True, "Sir ji, note text clear nahi hai."
-            return True, "Sir ji, note memory me save ho gaya hai."
+                return True, "Boss, note thoda clear bol na."
+            return True, "Theek hai Boss, note yaad rakh liya."
 
         if "show notes" in normalized or "show tasks" in normalized:
             notes = self.memory.notes()
             if not notes:
-                return True, "Sir ji, abhi koi saved notes nahi hain."
+                return True, "Boss, abhi koi saved notes nahi hain."
             preview = ", ".join(item.get("text", "") for item in notes[:3] if item.get("text"))
-            return True, f"Sir ji, saved notes: {preview}"
+            return True, f"Boss, saved notes ye hain: {preview}"
 
         reminder_match = re.search(r"(?:add task|add reminder)\s+(.+)", command, re.IGNORECASE)
         if reminder_match:
             text = reminder_match.group(1).strip()
             if not self.memory.add_reminder(text):
-                return True, "Sir ji, reminder text clear nahi hai."
-            return True, "Sir ji, reminder save ho gaya hai."
+                return True, "Boss, reminder thoda clear bol."
+            return True, "Ho gaya Boss, reminder save kar diya."
 
         if "show reminders" in normalized or "show schedule" in normalized:
             reminders = self.memory.reminders()
             if not reminders:
-                return True, "Sir ji, abhi koi reminders saved nahi hain."
+                return True, "Boss, abhi koi reminders saved nahi hain."
             preview = ", ".join(item.get("text", "") for item in reminders[:3] if item.get("text"))
-            return True, f"Sir ji, reminders: {preview}"
+            return True, f"Boss, reminders ye rahe: {preview}"
 
         if "organize downloads" in normalized:
             return True, self.organize_downloads()
@@ -47,7 +47,7 @@ class ProductivityEngine:
     def organize_downloads(self):
         downloads = Path.home() / "Downloads"
         if not downloads.exists():
-            return "Sir ji, Downloads folder available nahi hai."
+            return "Boss, Downloads folder mil nahi raha."
 
         buckets = {
             "Images": {".png", ".jpg", ".jpeg", ".gif", ".webp"},
@@ -84,5 +84,5 @@ class ProductivityEngine:
                 continue
 
         if moved == 0:
-            return "Sir ji, Downloads me organize karne layak files nahi mili."
-        return f"Sir ji, Downloads organize ho gaye. {moved} files move hui hain."
+            return "Boss, Downloads me organize karne layak files nahi mili."
+        return f"Ho gaya Boss, Downloads organize ho gaye. {moved} files move hui hain."

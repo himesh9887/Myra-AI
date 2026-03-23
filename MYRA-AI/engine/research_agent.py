@@ -206,7 +206,8 @@ class ResearchAgent:
     def _summarize_research(self, topic, parts):
         joined = " ".join(parts)
         prompt = (
-            "Summarize this research clearly in 4 short sentences for a desktop assistant user. "
+            "Summarize this research in 4 short casual Hinglish sentences for Boss. "
+            "Sound natural, helpful, and non-robotic. "
             f"Topic: {topic}. Research notes: {joined}"
         )
         summary = ask_ai(prompt)

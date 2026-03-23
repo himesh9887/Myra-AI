@@ -32,14 +32,14 @@ class DownloadAgent:
             response = requests.get(url, timeout=30)
             response.raise_for_status()
             target.write_bytes(response.content)
-            return f"Sir ji, file download ho gayi hai as {target.name}."
+            return f"Boss, file download ho gayi hai as {target.name}."
         except Exception as exc:
-            return f"Sir ji, file download nahi ho payi. {exc}"
+            return f"Boss, file download nahi ho payi. {exc}"
 
     def search_download(self, topic):
         query = topic.strip()
         if not query:
-            return "Sir ji, download query clear nahi hai."
+            return "Boss, download query clear nahi hai."
         try:
             import webbrowser
             from urllib.parse import quote_plus
@@ -49,9 +49,9 @@ class DownloadAgent:
                 new=0,
                 autoraise=False,
             )
-            return "Sir ji, download ke liye relevant results open kar diye hain."
+            return f"Boss, {query} ke download results open kar diye hain."
         except Exception as exc:
-            return f"Sir ji, download search open nahi ho paya. {exc}"
+            return f"Boss, download search open nahi ho paya. {exc}"
 
     def _extract_url(self, text):
         match = re.search(r"(https?://[^\s]+)", text)

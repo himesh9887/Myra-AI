@@ -10,8 +10,6 @@ class WebControl:
             "you tube": "https://www.youtube.com",
             "google": "https://www.google.com",
             "wikipedia": "https://www.wikipedia.org",
-            "whatsapp": "https://web.whatsapp.com",
-            "whatsapp web": "https://web.whatsapp.com",
             "instagram": "https://www.instagram.com",
             "facebook": "https://www.facebook.com",
             "gmail": "https://mail.google.com",

@@ -19,6 +19,10 @@ except ImportError:  # pragma: no cover
 
 
 class AppLauncher:
+    SPECIAL_WINDOWS_APPS = {
+        "whatsapp": "5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App",
+    }
+
     def __init__(self):
         self.app_index = {}
 
@@ -46,6 +50,10 @@ class AppLauncher:
                 return True, message
 
         ok, message = self._launch_direct_command(normalized)
+        if ok:
+            return True, message
+
+        ok, message = self._launch_special_windows_app(normalized)
         if ok:
             return True, message
 
@@ -263,6 +271,18 @@ class AppLauncher:
             return False, ""
 
         return False, ""
+
+    def _launch_special_windows_app(self, normalized):
+        app_id = ""
+        if normalized == "whatsapp" or normalized.startswith("whatsapp "):
+            app_id = self.SPECIAL_WINDOWS_APPS.get("whatsapp", "")
+        if not app_id:
+            return False, ""
+        try:
+            subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{app_id}"], shell=False)
+            return True, "Opening WhatsApp."
+        except Exception:
+            return False, ""
 
     def windows_search(self, app_name):
         try:

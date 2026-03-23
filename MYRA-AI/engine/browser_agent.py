@@ -14,8 +14,6 @@ class BrowserAgent:
     SITES = {
         "youtube": "https://www.youtube.com",
         "google": "https://www.google.com",
-        "whatsapp": "https://web.whatsapp.com",
-        "whatsapp web": "https://web.whatsapp.com",
         "gmail": "https://mail.google.com",
         "github": "https://github.com",
         "instagram": "https://www.instagram.com",

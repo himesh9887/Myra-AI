@@ -86,8 +86,28 @@ class SystemControl:
             r"set volume(?: to)?\s+(\d{1,3})",
             r"make volume\s+(\d{1,3})",
             r"volume\s+ko\s+(\d{1,3})\s*(?:%|percent)?\s*(?:karna|kar do|kardo|kar dena)?",
+            r"volume\s+(\d{1,3})\s*(?:%|percent)?\s*(?:kr do|kar do|kardo|krde|kar dena)?",
+            r"awaz\s+(\d{1,3})\s*(?:%|percent)?\s*(?:kr do|kar do|kardo|krde|kar dena)?",
+            r"sound\s+(\d{1,3})\s*(?:%|percent)?\s*(?:kr do|kar do|kardo|krde|kar dena)?",
             r"(\d{1,3})\s*%\s*(?:volume|sound|awaz)",
             r"(\d{1,3})\s*percent\s*(?:volume|sound|awaz)",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, command)
+            if match:
+                return int(match.group(1))
+        return None
+
+    def extract_brightness_percent(self, command):
+        patterns = [
+            r"brightness\s+(\d{1,3})\s*%",
+            r"brightness\s+(\d{1,3})\s*percent",
+            r"brightness\s+ko\s+(\d{1,3})\s*(?:%|percent)?\s*(?:kar do|kr do|kardo|krde|kar dena)?",
+            r"brightness\s+(\d{1,3})\s*(?:%|percent)?\s*(?:kar do|kr do|kardo|krde|kar dena)?",
+            r"screen brightness\s+(\d{1,3})",
+            r"light\s+(\d{1,3})\s*(?:%|percent)?",
+            r"(\d{1,3})\s*%\s*brightness",
+            r"(\d{1,3})\s*percent\s*brightness",
         ]
         for pattern in patterns:
             match = re.search(pattern, command)
@@ -198,7 +218,7 @@ class SystemControl:
 
     def date_time_status(self):
         now = datetime.now()
-        return f"Boss, aaj {now:%A, %d %B %Y} hai aur time {now:%I:%M %p} hai."
+        return f"Boss, abhi {now:%I:%M %p} ho raha hai aur aaj {now:%A, %d %B %Y} hai."
 
     def open_task_manager(self):
         subprocess.Popen(["taskmgr.exe"])
@@ -229,5 +249,10 @@ class SystemControl:
         target = mapping.get(folder_name.lower())
         if not target or not target.exists():
             return "Boss, yeh folder available nahi hai."
-        os.startfile(str(target))
-        return f"Boss, {folder_name.title()} folder open ho gaya hai."
+        try:
+            os.startfile(str(target))
+            return f"Boss, {folder_name.title()} folder open ho gaya hai."
+        except PermissionError:
+            return f"Boss, {folder_name.title()} folder access nahi ho pa raha."
+        except OSError as exc:
+            return f"Boss, {folder_name.title()} folder open nahi ho paya. {exc}"

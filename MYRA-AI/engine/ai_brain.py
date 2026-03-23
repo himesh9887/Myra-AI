@@ -1,155 +1,240 @@
 import os
-from pathlib import Path
+import re
 
 import requests
-from dotenv import load_dotenv
-from google import genai
+
+from engine.openrouter_client import OpenRouterClient
+from engine.runtime_config import load_myra_system_prompt, load_runtime_env
+
+load_runtime_env()
+
+FAILSAFE_PREFIX = "LOCAL_FALLBACK::"
+
+HF_API_URL = os.getenv(
+    "MYRA_HF_API_URL",
+    "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
+)
+HF_API_TOKEN = os.getenv("MYRA_HF_API_TOKEN") or os.getenv("HUGGINGFACE_API_TOKEN", "")
+API_TOKEN = HF_API_TOKEN
+LEGACY_OPENROUTER_API_KEY = ""
+OPENROUTER_API_KEY = str(os.getenv("OPENROUTER_API_KEY") or LEGACY_OPENROUTER_API_KEY).strip()
+OPENROUTER_MODEL = str(os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")).strip() or "openai/gpt-4o-mini"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+if OPENROUTER_API_KEY and not os.getenv("OPENROUTER_API_KEY"):
+    os.environ.setdefault("OPENROUTER_API_KEY", OPENROUTER_API_KEY)
+if OPENROUTER_MODEL and not os.getenv("OPENROUTER_MODEL"):
+    os.environ.setdefault("OPENROUTER_MODEL", OPENROUTER_MODEL)
+OPENROUTER_CLIENT = OpenRouterClient(api_key=OPENROUTER_API_KEY, model=OPENROUTER_MODEL, timeout=20.0)
 
 
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
-
-
-class AIBrain:
-    def __init__(self):
-        self.gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-        self.gemini_model = os.getenv("GEMINI_MODEL", "").strip() or "gemini-2.5-flash"
-        self.groq_key = os.getenv("GROQ_API_KEY", "").strip()
-        self.groq_model = os.getenv("GROQ_MODEL", "").strip() or "llama-3.1-8b-instant"
-        self.openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
-        self.openrouter_model = (
-            os.getenv("OPENROUTER_MODEL", "").strip() or "openai/gpt-4o-mini"
+def _profile_context(profile):
+    if not isinstance(profile, dict):
+        return ""
+    course = profile.get("course", "")
+    semester = profile.get("semester", "")
+    field = profile.get("field", "")
+    interests = ", ".join(profile.get("interests", []))
+    project = profile.get("current_project", "")
+    facts = ", ".join(item.get("text", "") for item in profile.get("facts", []) if isinstance(item, dict))
+    activity_snapshot = profile.get("activity_snapshot") if isinstance(profile.get("activity_snapshot"), dict) else {}
+    active_app = str(activity_snapshot.get("active_app", "")).strip()
+    active_title = str(activity_snapshot.get("active_title", "")).strip()
+    open_apps = ", ".join(activity_snapshot.get("open_apps", [])[:5]) if activity_snapshot.get("open_apps") else ""
+    focus_minutes = activity_snapshot.get("minutes_in_focus", "")
+    screen_summary = str(profile.get("screen_summary", "")).strip()
+    context = (
+        f"User profile: Preferred address=Boss, Course={course}, Semester={semester}, "
+        f"Field={field}, Interests={interests}, Current project={project}, Facts={facts}."
+    )
+    if active_app or active_title or open_apps:
+        context += (
+            " Current device context: "
+            f"active_app={active_app}, active_window={active_title}, open_apps={open_apps}, "
+            f"focus_minutes={focus_minutes}."
         )
-        self.openrouter_site = os.getenv("OPENROUTER_SITE_URL", "").strip() or "http://localhost"
-        self.openrouter_title = os.getenv("OPENROUTER_APP_NAME", "").strip() or "MYRA"
+    if screen_summary:
+        context += f" Latest screen summary: {screen_summary}."
+    return context
 
-        self._gemini_client = None
-        if self.gemini_key:
-            self._gemini_client = genai.Client(api_key=self.gemini_key)
 
-    def ask_ai(self, prompt):
-        text = str(prompt).strip()
-        if not text:
-            return "AI error: empty prompt."
+def _fallback_response(prompt, profile=None):
+    text = str(prompt).strip()
+    normalized = text.lower()
+    profile = profile if isinstance(profile, dict) else {}
 
-        providers = (
-            self._ask_gemini,
-            self._ask_groq,
-            self._ask_openrouter,
+    course = profile.get("course", "your course")
+    project = profile.get("current_project", "MYRA")
+    interests = ", ".join(profile.get("interests", []))
+
+    compact = re.sub(r"[^a-z0-9\s]", " ", normalized)
+    compact = " ".join(compact.split())
+
+    if re.search(r"\bmachine learning\b", compact):
+        return (
+            "Acha Boss, machine learning matlab system data dekh ke pattern pakad leta hai "
+            "aur fir us base pe decision ya prediction maar deta hai."
         )
 
-        last_error = ""
-        for provider in providers:
-            answer, error = provider(text)
-            if answer:
-                return answer
-            if error:
-                last_error = error
+    if re.search(r"\bai\b", compact) and re.search(r"\b(kya|what|explain|define|full)\b", compact):
+        return (
+            "Hmm Boss, AI simple me wo cheez hai jo machine ko thoda smart bana de... "
+            "samjha? matlab decision, prediction, automation wala scene."
+        )
 
-        if last_error:
-            return f"AI service temporarily unavailable. {last_error}"
-        return "AI service temporarily unavailable, please try again later."
+    if re.search(r"\bpython\b", compact) and re.search(r"\b(kya|what|explain|define)\b", compact):
+        return (
+            "Arey Boss, Python kaafi mast language hai... beginner friendly bhi, "
+            "aur automation se leke AI tak sab me kaam aa jati hai."
+        )
 
-    def _ask_gemini(self, prompt):
-        if self._gemini_client is None:
-            return "", "Gemini not configured."
+    if any(token in compact for token in ["tired", "sleepy", "exhausted"]):
+        return "Arey Boss, tu kaafi drained lag raha hai... 5 minute break maar, phir dekhte hain."
 
-        model_candidates = [self.gemini_model, "gemini-2.0-flash"]
-        last_error = ""
+    if any(token in compact for token in ["stressed", "anxious", "overwhelmed", "tension"]):
+        return "Haan samajh rha hu Boss... tension hai. Ruk, isko chhote steps me tod dete hain."
 
-        for model_name in model_candidates:
-            if not model_name:
-                continue
-            try:
-                response = self._gemini_client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                )
-                text = getattr(response, "text", None)
-                if text:
-                    return text, ""
-                return "", "Gemini returned an empty response."
-            except Exception as exc:
-                message = str(exc)
-                lowered = message.lower()
-                if any(token in lowered for token in ("404", "not found", "unsupported", "model")):
-                    last_error = message
-                    continue
-                return "", f"Gemini failed: {message}"
+    if any(token in compact for token in ["bored", "boring"]):
+        return "Acha Boss, bore ho raha hai kya... bol music chala du ya kuch random mast karte hain?"
 
-        return "", f"Gemini failed: {last_error or 'no valid model available.'}"
+    if any(token in compact for token in ["happy", "excited", "glad"]):
+        return "Arey wah Boss 🔥 ye hui na baat... energy mast lag rahi."
 
-    def _ask_groq(self, prompt):
-        if not self.groq_key:
-            return "", "Groq not configured."
+    if any(token in compact for token in ["sad", "down", "upset"]):
+        return "Arey kya hua Boss... bol na. Main yahin hu, saath me dekh lenge."
 
-        payload = {
-            "model": self.groq_model,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        headers = {
-            "Authorization": f"Bearer {self.groq_key}",
-            "Content-Type": "application/json",
-        }
+    if any(token in normalized for token in ["what do you know about me", "tell me about me", "do you know me"]):
+        details = [f"tu {course} kar raha hai"]
+        if project:
+            details.append(f"tu {project} build kar raha hai")
+        if interests:
+            details.append(f"aur tujhe {interests} pasand hai")
+        return f"Hmm Boss, mujhe yaad hai ki {', '.join(details)}."
 
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=20,
-            )
-            response.raise_for_status()
-            data = response.json()
-        except Exception as exc:
-            return "", f"Groq failed: {exc}"
+    if normalized.startswith(("what is ", "who is ", "how ", "why ", "explain ", "define ")):
+        return "Boss net wala brain thoda nakhre kar raha hai... ruk, topic thoda specific bol, simple me samjhata hu."
 
-        content = self._extract_chat_content(data)
-        if content:
-            return content, ""
-        return "", "Groq returned an empty response."
+    return "Hmm Boss, samajh aa raha hai... bas thoda aur seedha bol de, fir sahi se batata hu."
 
-    def _ask_openrouter(self, prompt):
-        if not self.openrouter_key:
-            return "", "OpenRouter not configured."
 
-        payload = {
-            "model": self.openrouter_model,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        headers = {
-            "Authorization": f"Bearer {self.openrouter_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": self.openrouter_site,
-            "X-Title": self.openrouter_title,
-        }
+def is_failsafe_response(text):
+    return str(text).startswith(FAILSAFE_PREFIX)
 
-        try:
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=20,
-            )
-            response.raise_for_status()
-            data = response.json()
-        except Exception as exc:
-            return "", f"OpenRouter failed: {exc}"
 
-        content = self._extract_chat_content(data)
-        if content:
-            return content, ""
-        return "", "OpenRouter returned an empty response."
+def ask_ai(prompt, profile=None):
+    system_prompt = load_myra_system_prompt()
+    profile_instruction = _profile_context(profile)
+    final_prompt = "\n".join(
+        item.strip()
+        for item in (profile_instruction, f"User: {prompt}", "MYRA:")
+        if str(item).strip()
+    )
 
-    def _extract_chat_content(self, payload):
-        choices = payload.get("choices") or []
-        if not choices:
+    providers = [
+        _ask_openrouter,
+        _ask_gemini,
+        _ask_huggingface,
+    ]
+    for provider in providers:
+        answer = provider(final_prompt, system_prompt=system_prompt)
+        if answer:
+            cleaned = _clean_response(answer)
+            if cleaned:
+                return cleaned
+
+    return FAILSAFE_PREFIX + _fallback_response(prompt, profile)
+
+
+def available_ai_providers():
+    providers = []
+    if GEMINI_API_KEY:
+        providers.append("gemini")
+    if OPENROUTER_API_KEY:
+        providers.append("openrouter")
+    if HF_API_TOKEN:
+        providers.append("huggingface")
+    return providers
+
+
+def _ask_gemini(final_prompt, system_prompt=""):
+    if not GEMINI_API_KEY:
+        return ""
+    request_prompt = "\n".join(
+        item.strip()
+        for item in (system_prompt, final_prompt)
+        if str(item).strip()
+    )
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": request_prompt}]}],
+        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 500},
+    }
+    try:
+        response = requests.post(url, json=payload, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
             return ""
-        message = choices[0].get("message") or {}
-        return str(message.get("content") or "").strip()
+        parts = candidates[0].get("content", {}).get("parts", [])
+        return " ".join(str(part.get("text", "")).strip() for part in parts if isinstance(part, dict)).strip()
+    except Exception:
+        return ""
 
 
-_AI_BRAIN = AIBrain()
+def _ask_openrouter(final_prompt, system_prompt=""):
+    if not OPENROUTER_CLIENT.available():
+        return ""
+    data = OPENROUTER_CLIENT.chat(
+        [
+            {"role": "system", "content": str(system_prompt).strip()},
+            {"role": "user", "content": final_prompt},
+        ],
+        temperature=0.7,
+        max_tokens=500,
+    )
+    return OPENROUTER_CLIENT.extract_text(data)
 
 
-def ask_ai(prompt: str) -> str:
-    return _AI_BRAIN.ask_ai(prompt)
+def _ask_huggingface(final_prompt, system_prompt=""):
+    if not HF_API_TOKEN:
+        return ""
+    headers = {
+        "Authorization": f"Bearer {HF_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    request_prompt = "\n".join(
+        item.strip()
+        for item in (system_prompt, final_prompt)
+        if str(item).strip()
+    )
+    payload = {"inputs": request_prompt}
+    try:
+        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=25)
+        data = response.json()
+    except Exception:
+        return ""
+
+    if isinstance(data, dict) and data.get("error"):
+        return ""
+    try:
+        return str(data[0]["generated_text"]).strip()
+    except Exception:
+        return ""
+
+
+def _clean_response(text):
+    cleaned = str(text).strip()
+    if not cleaned:
+        return ""
+    if "MYRA:" in cleaned:
+        cleaned = cleaned.split("MYRA:", 1)[1].strip()
+    if cleaned.startswith('"') and cleaned.endswith('"'):
+        cleaned = cleaned[1:-1].strip()
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if len(cleaned.split()) < 2:
+        return ""
+    return cleaned
