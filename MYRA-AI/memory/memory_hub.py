@@ -20,6 +20,7 @@ class MemoryHub:
         self.daily_memory_path = self.storage_dir / "daily_memory.json"
         self.mood_history_path = self.storage_dir / "mood_history.json"
         self.emotion_history_path = self.storage_dir / "emotion_history.json"
+        self.snapshot_path = self.storage_dir / "myra_memory.json"
 
         self.profile_data = self._merge(self._default_profile(), self._load_json(self.profile_path, {}))
         self.conversation_data = self._load_list(self.conversation_path)
@@ -95,6 +96,18 @@ class MemoryHub:
             "most_used_apps": dict(self.usage_data.get("most_used_apps", {})),
             "frequent_commands": dict(self.usage_data.get("frequent_commands", {})),
             "user_habits": dict(self.usage_data.get("user_habits", {})),
+        }
+
+    def full_memory_snapshot(self):
+        return {
+            "profile": self.profile(),
+            "daily_memory": self.daily_memory(),
+            "conversation_history": self.recent_conversations(limit=80),
+            "usage": self.usage(),
+            "task_history": self.task_history(limit=100),
+            "mood_history": self.mood_history(limit=None),
+            "emotion_history": self.emotion_history(),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
 
     def add_interest(self, interest):
@@ -177,6 +190,70 @@ class MemoryHub:
         }
         self.profile_data.setdefault("reminders", []).append(reminder)
         self._save_profile()
+        return True
+
+    def set_relationship_status(self, status, note=""):
+        cleaned = str(status).strip().lower()
+        if not cleaned:
+            return False
+        self.profile_data["relationship_status"] = cleaned
+        if note:
+            self.remember_fact(str(note).strip())
+        self._save_profile()
+        return True
+
+    def set_emotional_state(self, state, note=""):
+        cleaned = str(state).strip().lower()
+        if not cleaned:
+            return False
+        self.profile_data["emotional_state"] = cleaned
+        self._save_profile()
+        if cleaned in {"happy", "excited", "motivated", "sad", "tired", "angry", "bored", "confused", "stressed"}:
+            self.log_mood(cleaned, source="memory", note=note)
+        return True
+
+    def set_exam_event(self, exam_date=None, start_time="", end_time="", subject=""):
+        normalized_date = str(exam_date).strip() if exam_date else ""
+        cleaned_subject = str(subject).strip()
+        cleaned_start = str(start_time).strip()
+        cleaned_end = str(end_time).strip()
+        target_day = self.day_key(normalized_date or None)
+
+        if not normalized_date and not cleaned_subject and not cleaned_start and not cleaned_end:
+            return False
+
+        if normalized_date:
+            self.profile_data["exam_date"] = normalized_date
+        if cleaned_subject:
+            self.profile_data["subject"] = cleaned_subject
+
+        entry = self.daily_data.setdefault("days", {}).setdefault(target_day, self._default_daily_entry(target_day))
+        entry["exam_date"] = normalized_date or entry.get("exam_date") or target_day
+        if cleaned_subject:
+            entry["subject"] = cleaned_subject
+        if cleaned_start:
+            entry["exam_start"] = cleaned_start
+        if cleaned_end:
+            entry["exam_end"] = cleaned_end
+        entry.setdefault("exam_feedback", "")
+        entry.setdefault("awaiting_exam_feedback", False)
+        entry["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        self._save_profile()
+        self._save_daily_memory()
+        return True
+
+    def save_exam_feedback(self, feedback, target_day=None):
+        cleaned = " ".join(str(feedback).strip().split())
+        if not cleaned:
+            return False
+        day = self.day_key(target_day or self.profile_data.get("exam_date") or None)
+        entry = self.daily_data.setdefault("days", {}).setdefault(day, self._default_daily_entry(day))
+        entry["exam_feedback"] = cleaned
+        entry["awaiting_exam_feedback"] = False
+        entry["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        self.profile_data["latest_exam_feedback"] = cleaned
+        self._save_profile()
+        self._save_daily_memory()
         return True
 
     def due_today(self):
@@ -270,6 +347,17 @@ class MemoryHub:
             goal = goal_match.group(1).strip().strip(".")
             learned = self.set_preference("goal", goal) or learned
             learned = self.remember_fact(f"Your goal is {goal}") or learned
+        if re.search(r"\b(?:gf|girlfriend|relationship)\b", normalized) and re.search(
+            r"\b(?:dhokha|cheat(?:ed)?|betray(?:ed|al)?|break(?: ?up)?|left me|heartbroken)\b",
+            normalized,
+        ):
+            learned = self.set_relationship_status("broken", note=raw) or learned
+            learned = self.set_emotional_state("sad", note=raw) or learned
+        elif re.search(r"\b(?:relationship|gf|girlfriend)\b", normalized) and re.search(
+            r"\b(?:complicated|messy|not good|toxic)\b",
+            normalized,
+        ):
+            learned = self.set_relationship_status("complicated", note=raw) or learned
         return learned
 
     def suggestion(self):
@@ -631,27 +719,38 @@ class MemoryHub:
 
     def _save_profile(self):
         self.profile_path.write_text(json.dumps(self.profile_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        self._save_companion_memory()
 
     def _save_conversations(self):
         self.conversation_path.write_text(json.dumps(self.conversation_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        self._save_companion_memory()
 
     def _save_usage(self):
         self.usage_path.write_text(json.dumps(self.usage_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        self._save_companion_memory()
 
     def _save_tasks(self):
         self.task_history_path.write_text(json.dumps(self.task_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        self._save_companion_memory()
 
     def _save_daily_memory(self):
         self.daily_memory_path.write_text(json.dumps(self.daily_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        self._save_companion_memory()
 
     def _save_mood_history(self):
         self.mood_history_path.write_text(json.dumps(self.mood_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        self._save_companion_memory()
 
     def _save_emotion_history(self):
         self.emotion_history_path.write_text(
             json.dumps(self.emotion_history_data, indent=2, ensure_ascii=True),
             encoding="utf-8",
         )
+        self._save_companion_memory()
+
+    def _save_companion_memory(self):
+        payload = self.full_memory_snapshot()
+        self.snapshot_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
 
     def _load_json(self, path, default):
         if not path.exists():
@@ -817,6 +916,9 @@ class MemoryHub:
             "conversation_history": [],
             "exam_date": "",
             "subject": "",
+            "relationship_status": "",
+            "emotional_state": "",
+            "latest_exam_feedback": "",
             "study_goal_hours": 3,
             "study_progress": 0,
             "behavior_profile": self._default_behavior_profile(),
@@ -861,6 +963,10 @@ class MemoryHub:
             "date": day_key,
             "subject": self.profile_data.get("subject", ""),
             "exam_date": self.profile_data.get("exam_date", ""),
+            "exam_start": "",
+            "exam_end": "",
+            "exam_feedback": "",
+            "awaiting_exam_feedback": False,
             "study_goal_hours": self._coerce_hours(self.profile_data.get("study_goal_hours", 3), 3),
             "study_progress": self._coerce_hours(self.profile_data.get("study_progress", 0), 0),
             "focus_mode": "study",

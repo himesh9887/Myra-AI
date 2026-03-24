@@ -68,7 +68,7 @@ class AssistantController(QObject):
     DEFAULT_PROFILE = {
         "name": "Himesh Rajput",
         "course": "BCA",
-        "semester": "2nd",
+        "semester": "4nd",
         "field": "Software Engineering",
         "interests": ["Python", "AI development", "automation"],
         "current_project": "MYRA AI assistant",

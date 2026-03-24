@@ -50,53 +50,64 @@ class HumanSpeechFormatter:
     def __init__(self, model_id):
         self.model_id = str(model_id or "").strip().lower()
         self._last_template_by_intent = {}
+        self._last_short_opener_by_emotion = {}
         self._templates = {
             "app_open": [
-                "Alright Boss... opening {target} now.",
-                "Sure Boss, launching {target}.",
-                "Got it Boss, opening {target}.",
+                "Acha Boss, {target} khol rahi hoon.",
+                "Haan Boss, {target} abhi khol deti hoon.",
+                "Ek sec Boss, {target} open kar rahi hoon.",
             ],
             "app_close": [
-                "Alright Boss... closing {target}.",
-                "Got it Boss, shutting {target} down.",
-                "On it Boss, closing {target}.",
+                "Theek hai Boss, {target} band kar rahi hoon.",
+                "Haan Boss, {target} close kar deti hoon.",
+                "Ek sec Boss, {target} band kar rahi hoon.",
             ],
             "web_search": [
-                "Give me a second Boss... checking that online.",
-                "Searching that for you Boss.",
-                "On it Boss... looking that up now.",
+                "Ek sec Boss, ye online check karti hoon.",
+                "Haan Boss, abhi search kar rahi hoon.",
+                "Ruk Boss, isko web pe dekh leti hoon.",
             ],
             "media_play": [
-                "Nice choice Boss... playing {target} now.",
-                "On it Boss, starting {target}.",
-                "Got it Boss... playing {target}.",
+                "Arey nice Boss, {target} chala rahi hoon.",
+                "Haan Boss, {target} abhi play kar deti hoon.",
+                "Acha Boss, {target} abhi chala rahi hoon.",
             ],
             "listen_on": [
-                "Alright Boss... I'm listening.",
-                "Listening now Boss.",
-                "Got it Boss, voice mode is live.",
+                "Haan Boss, bol na, sun rahi hoon.",
+                "Acha Boss, ab main listening pe hoon.",
+                "Bol Boss, main yahin hoon.",
             ],
             "listen_off": [
-                "Alright Boss... I'll stay quiet for now.",
-                "Okay Boss, listening is paused.",
-                "Got it Boss, mic watch is off.",
+                "Theek hai Boss, ab chup rehti hoon.",
+                "Okay Boss, listening pause kar diya.",
+                "Haan Boss, mic sunna abhi off hai.",
             ],
             "error": [
-                "Something went wrong Boss.",
-                "Let me try that again Boss.",
-                "Hmm... that did not go through Boss.",
+                "Hmm Boss, ye abhi sahi se nahi hua.",
+                "Arey Boss, ek baar fir try karte hain.",
+                "Boss, isme thoda issue aa gaya.",
             ],
             "working": [
-                "Working on it Boss.",
-                "Alright Boss... on it.",
-                "Got it Boss.",
+                "Haan Boss, dekh rahi hoon.",
+                "Ek sec Boss, kar rahi hoon.",
+                "Acha Boss, on it.",
             ],
+        }
+        self._short_openers = {
+            "normal": ["Haan Boss, ", "Acha Boss, "],
+            "friendly": ["Haan Boss, ", "Acha Boss, ", "Arey Boss, "],
+            "thinking": ["Ek sec Boss, ", "Ruk Boss, ", "Haan Boss, "],
+            "supportive": ["Arey Boss, ", "Haan Boss, ", "Sun na Boss, "],
+            "cheerful": ["Arey Boss, ", "Wah Boss, ", "Nice Boss, "],
+            "excited": ["Wah Boss, ", "Arey Boss, ", "Acha Boss, "],
+            "error": ["Hmm Boss, ", "Arey Boss, ", "Haan Boss, "],
         }
 
     def prepare(self, text):
         cleaned = self._clean_text(text)
         if not cleaned:
             return PreparedSpeech("", "", "", "generic", "normal")
+        cleaned = self._friendify_text(cleaned)
 
         intent, emotion = self._classify(cleaned)
         if self._should_rewrite(cleaned, intent):
@@ -172,6 +183,49 @@ class HumanSpeechFormatter:
         self._last_template_by_intent[intent] = template
         return template
 
+    def _pick_short_opener(self, emotion):
+        options = self._short_openers.get(emotion) or self._short_openers["normal"]
+        last = self._last_short_opener_by_emotion.get(emotion)
+        if len(options) > 1 and last in options:
+            options = [item for item in options if item != last]
+        opener = random.choice(options)
+        self._last_short_opener_by_emotion[emotion] = opener
+        return opener
+
+    def _friendify_text(self, text):
+        rewritten = str(text).strip()
+        if not rewritten:
+            return ""
+
+        regex_replacements = [
+            (r"^Got it Boss\.\s*Current project saved as (.+?)\.?$", r"Acha Boss, current project \1 yaad rakh liya."),
+            (r"^Done Boss\.\s*I(?:'| )?ll remember that you use (.+?)\.?$", r"Haan Boss, yaad rakh lungi ki tu \1 use karta hai."),
+            (r"^Noted Boss\.\s*I(?:'| )?ll remember that\.?$", "Theek hai Boss, yaad rakh lungi."),
+            (r"^Alright Boss,\s*searching Google for (.+?)\.?$", r"Ek sec Boss, \1 Google pe search kar rahi hoon."),
+            (r"^Playing (.+?) on YouTube Boss\.?$", r"Acha Boss, YouTube pe \1 chala rahi hoon."),
+            (r"^Sure Boss,\s*playing (.+?) on YouTube\.?$", r"Acha Boss, YouTube pe \1 chala rahi hoon."),
+            (r"^Opening it Boss\.?$", "Acha Boss, khol rahi hoon."),
+            (r"^Opening (.+?)\.?$", r"Acha Boss, \1 khol rahi hoon."),
+            (r"^Closing (.+?)\.?$", r"Theek hai Boss, \1 band kar rahi hoon."),
+            (r"^Okay Boss\.\s*Listening stopped\.?$", "Theek hai Boss, ab main chup rehti hoon."),
+            (r"^Boss,\s*listening already stopped hai\.?$", "Boss, mic pehle se off hai."),
+            (r"^Boss,\s*continuous listening already on hai\.?$", "Boss, main pehle se sun rahi hoon."),
+        ]
+        for pattern, replacement in regex_replacements:
+            updated = re.sub(pattern, replacement, rewritten, flags=re.IGNORECASE)
+            if updated != rewritten:
+                rewritten = updated
+
+        simple_replacements = {
+            "Alright Boss": "Acha Boss",
+            "Got it Boss": "Haan Boss",
+            "Sure Boss": "Haan Boss",
+            "Done Boss": "Ho gaya Boss",
+        }
+        for source, target in simple_replacements.items():
+            rewritten = rewritten.replace(source, target)
+        return self._clean_text(rewritten)
+
     def _extract_subject(self, text, intent):
         patterns = {
             "app_open": [
@@ -179,21 +233,26 @@ class HumanSpeechFormatter:
                 r"\blaunch(?:ing)?\s+(.+?)(?:\s+boss)?[.!?]?$",
                 r"\b(.+?)\s+open ho gaya(?: hai)?[.!?]?$",
                 r"\bopen\s+(?!ho\b)(.+?)(?:\s+now)?[.!?]?$",
+                r"\b(.+?)\s+khol rahi hoon[.!?]?$",
             ],
             "app_close": [
                 r"\bclosing\s+(.+?)(?:\s+boss)?[.!?]?$",
                 r"\bclose\s+(.+?)(?:\s+now)?[.!?]?$",
                 r"\b(.+?)\s+band(?:\s+ho gaya)?(?:\s+hai)?[.!?]?$",
+                r"\b(.+?)\s+band kar rahi hoon[.!?]?$",
             ],
             "media_play": [
                 r"\bplaying\s+(.+?)(?:\s+on\s+youtube)?(?:\s+boss)?[.!?]?$",
                 r"\bstarting\s+(.+?)(?:\s+boss)?[.!?]?$",
                 r"\bplay\s+(.+?)(?:\s+on\s+youtube)?[.!?]?$",
+                r"\byoutube pe\s+(.+?)\s+chala rahi hoon[.!?]?$",
+                r"\b(.+?)\s+abhi chala rahi hoon[.!?]?$",
             ],
             "web_search": [
                 r"\bfor\s+(.+?)(?:\s+boss)?[.!?]?$",
                 r"\bsearch(?:ing)?\s+(.+?)(?:\s+online)?(?:\s+boss)?[.!?]?$",
                 r"\bchecking\s+(.+?)(?:\s+online)?(?:\s+boss)?[.!?]?$",
+                r"\b(.+?)\s+google pe search kar rahi hoon[.!?]?$",
             ],
         }
         for pattern in patterns.get(intent, []):
@@ -208,35 +267,43 @@ class HumanSpeechFormatter:
         return ""
 
     def _polish_existing(self, text, emotion):
-        polished = str(text).strip()
+        polished = self._friendify_text(text)
         if not polished:
             return ""
-        if emotion in {"thinking", "friendly", "supportive"} and "..." not in polished:
+        if emotion in {"thinking", "friendly", "supportive"} and "," not in polished and "..." not in polished:
             polished = self._add_pause(polished)
         if len(polished.split()) <= 7 and "Boss" not in polished:
-            polished = f"Alright Boss... {polished[0].lower() + polished[1:]}" if len(polished) > 1 else f"Alright Boss... {polished}"
+            opener = self._pick_short_opener(emotion)
+            if len(polished) > 1 and polished[:2].isupper():
+                polished = f"{opener}{polished}"
+            elif len(polished) > 1:
+                polished = f"{opener}{polished[0].lower() + polished[1:]}"
+            else:
+                polished = f"{opener}{polished}"
         return self._clean_text(polished)
 
     def _build_spoken_text(self, display_text, emotion):
         spoken = self._add_pause(display_text) if emotion in {"thinking", "friendly", "supportive"} else display_text
         if re.search(r"Boss\.(?!\.)", spoken) and len(spoken.split()) <= 10:
-            spoken = re.sub(r"Boss\.(?!\.)", "Boss...", spoken)
-        spoken = re.sub(r"\.{3,}", " [short pause] ", spoken)
+            spoken = re.sub(r"Boss\.(?!\.)", "Boss,", spoken)
+        spoken = re.sub(r"\bAI\b", "A I", spoken)
+        spoken = spoken.replace("...", ", ")
+        spoken = re.sub(r"\s+([,.!?])", r"\1", spoken)
         return re.sub(r"\s+", " ", spoken).strip()
 
     def _add_pause(self, text):
         spoken = str(text).strip()
-        if "..." in spoken:
+        if "," in spoken:
             return spoken
         if "Boss," in spoken:
-            return spoken.replace("Boss,", "Boss...", 1)
+            return spoken
         if "Boss." in spoken:
-            return spoken.replace("Boss.", "Boss...", 1)
+            return spoken.replace("Boss.", "Boss,", 1)
         if "Boss" in spoken:
-            return spoken.replace("Boss", "Boss...", 1)
+            return spoken.replace("Boss", "Boss,", 1)
         words = spoken.split()
         if len(words) > 4:
-            return f"{' '.join(words[:3])}... {' '.join(words[3:])}"
+            return f"{' '.join(words[:2])}, {' '.join(words[2:])}"
         return spoken
 
     def _display_target(self, subject):
@@ -261,9 +328,10 @@ class HumanSpeechFormatter:
         cleaned = cleaned.replace("MYRA", "Myra")
         cleaned = cleaned.replace("Sir ji", "Boss")
         cleaned = cleaned.replace("sir ji", "Boss")
-        cleaned = re.sub(r"\bAI\b", "A I", cleaned)
         cleaned = re.sub(r"\bvs code\b", "VS Code", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\bwhatsapp\b", "WhatsApp", cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.replace(" ,", ",")
+        cleaned = re.sub(r"\s+([,.!?])", r"\1", cleaned)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         return cleaned
 
@@ -415,14 +483,15 @@ class VoiceEngine:
         )
         self.model_id = os.getenv("MYRA_ELEVENLABS_MODEL", self.DEFAULT_MODEL_ID).strip() or self.DEFAULT_MODEL_ID
         self.output_format = os.getenv("MYRA_ELEVENLABS_OUTPUT", "mp3_44100_128").strip() or "mp3_44100_128"
-        self.speed = self._clamp_float(os.getenv("MYRA_ELEVENLABS_SPEED", "0.96"), 0.9, 1.0, 0.96)
-        self.stability = self._clamp_float(os.getenv("MYRA_ELEVENLABS_STABILITY", "0.36"), 0.0, 1.0, 0.36)
+        self.speed = self._clamp_float(os.getenv("MYRA_ELEVENLABS_SPEED", "0.94"), 0.88, 1.02, 0.94)
+        self.stability = self._clamp_float(os.getenv("MYRA_ELEVENLABS_STABILITY", "0.30"), 0.0, 1.0, 0.30)
         self.similarity_boost = self._clamp_float(os.getenv("MYRA_ELEVENLABS_SIMILARITY", "0.82"), 0.0, 1.0, 0.82)
-        self.style = self._clamp_float(os.getenv("MYRA_ELEVENLABS_STYLE", "0.22"), 0.0, 1.0, 0.22)
+        self.style = self._clamp_float(os.getenv("MYRA_ELEVENLABS_STYLE", "0.34"), 0.0, 1.0, 0.34)
         self.timeout = self._clamp_float(os.getenv("MYRA_ELEVENLABS_TIMEOUT", "30"), 5.0, 120.0, 30.0)
         self.edge_voice = os.getenv("MYRA_EDGE_TTS_VOICE", "en-IN-NeerjaNeural").strip() or "en-IN-NeerjaNeural"
-        self.edge_rate = os.getenv("MYRA_EDGE_TTS_RATE", "-6%").strip() or "-6%"
-        self.edge_pitch = os.getenv("MYRA_EDGE_TTS_PITCH", "+0Hz").strip() or "+0Hz"
+        self.edge_rate = os.getenv("MYRA_EDGE_TTS_RATE", "-10%").strip() or "-10%"
+        self.edge_pitch = os.getenv("MYRA_EDGE_TTS_PITCH", "+2Hz").strip() or "+2Hz"
+        self.local_rate = int(self._clamp_float(os.getenv("MYRA_LOCAL_TTS_RATE", "145"), 130, 180, 145))
         self.edge_tts_exe = self._discover_edge_tts_exe()
         self.debug_voice = str(os.getenv("MYRA_DEBUG_VOICE", "")).strip().lower() in {"1", "true", "yes", "on"}
 
@@ -594,7 +663,8 @@ class VoiceEngine:
         if pyttsx3 is None:
             raise RuntimeError("pyttsx3 unavailable")
         engine = pyttsx3.init()
-        engine.setProperty("rate", 165)
+        self._configure_local_voice(engine)
+        engine.setProperty("rate", self.local_rate)
         engine.save_to_file(self._strip_pause_markup(prepared.spoken_text or prepared.display_text), str(target_path))
         engine.runAndWait()
         time.sleep(0.5)
@@ -681,7 +751,8 @@ class VoiceEngine:
             return None
         try:
             engine = pyttsx3.init()
-            engine.setProperty("rate", 155)
+            self._configure_local_voice(engine)
+            engine.setProperty("rate", self.local_rate)
             engine.setProperty("volume", 1.0)
 
             def speak_with_pyttsx3(message):
@@ -697,7 +768,30 @@ class VoiceEngine:
 
     def _strip_pause_markup(self, text):
         cleaned = str(text).replace("[short pause]", " ")
-        return re.sub(r"\s+", " ", cleaned.replace("...", ". ")).strip()
+        return re.sub(r"\s+", " ", cleaned.replace("...", ", ")).strip()
+
+    def _configure_local_voice(self, engine):
+        try:
+            voices = engine.getProperty("voices") or []
+        except Exception:
+            voices = []
+
+        preferred_tokens = ("neerja", "heera", "zira", "hazel", "india", "indian", "female")
+        for voice in voices:
+            descriptor = " ".join(
+                str(getattr(voice, attr, "") or "")
+                for attr in ("name", "id")
+            ).lower()
+            if any(token in descriptor for token in preferred_tokens):
+                try:
+                    engine.setProperty("voice", voice.id)
+                    break
+                except Exception:
+                    continue
+        try:
+            engine.setProperty("volume", 1.0)
+        except Exception:
+            pass
 
     def _clear_runtime_files(self):
         for stale_file in self.runtime_dir.glob("myra_voice_*.mp3"):

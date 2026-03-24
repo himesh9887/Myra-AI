@@ -1,0 +1,40 @@
+{
+  "name": "",
+  "user_name": "",
+  "course": "",
+  "semester": "",
+  "field": "",
+  "interests": [],
+  "current_project": "",
+  "goal": "",
+  "projects": [],
+  "preferences": {},
+  "frequent_apps": [],
+  "favorite_app": "",
+  "facts": [
+    {
+      "text": "meri gf ne dhokha diya",
+      "created_on": "2026-03-24"
+    }
+  ],
+  "notes": [],
+  "reminders": [],
+  "conversation_history": [],
+  "exam_date": "",
+  "subject": "",
+  "relationship_status": "broken",
+  "emotional_state": "sad",
+  "latest_exam_feedback": "",
+  "study_goal_hours": 3.0,
+  "study_progress": 0.0,
+  "behavior_profile": {
+    "preferred_study_time": "",
+    "coding_schedule": "",
+    "sleep_time": "",
+    "frequent_apps": [],
+    "app_minutes": {},
+    "study_windows": {},
+    "coding_windows": {},
+    "night_activity_count": 0
+  }
+}

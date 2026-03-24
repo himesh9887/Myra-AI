@@ -1,0 +1,103 @@
+{
+  "profile": {
+    "name": "",
+    "user_name": "",
+    "course": "",
+    "semester": "",
+    "field": "",
+    "interests": [],
+    "current_project": "",
+    "goal": "",
+    "projects": [],
+    "preferences": {},
+    "frequent_apps": [],
+    "favorite_app": "",
+    "facts": [
+      {
+        "text": "meri gf ne dhokha diya",
+        "created_on": "2026-03-24"
+      }
+    ],
+    "notes": [],
+    "reminders": [],
+    "conversation_history": [],
+    "exam_date": "",
+    "subject": "",
+    "relationship_status": "broken",
+    "emotional_state": "sad",
+    "latest_exam_feedback": "",
+    "study_goal_hours": 3.0,
+    "study_progress": 0.0,
+    "behavior_profile": {
+      "preferred_study_time": "",
+      "coding_schedule": "",
+      "sleep_time": "",
+      "frequent_apps": [],
+      "app_minutes": {},
+      "study_windows": {},
+      "coding_windows": {},
+      "night_activity_count": 0
+    },
+    "latest_mood": {
+      "date": "2026-03-24",
+      "emotion": "sad"
+    },
+    "emotion_history": {
+      "2026-03-24": "sad"
+    }
+  },
+  "daily_memory": {
+    "date": "2026-03-24",
+    "subject": "",
+    "exam_date": "",
+    "exam_start": "",
+    "exam_end": "",
+    "exam_feedback": "",
+    "awaiting_exam_feedback": false,
+    "study_goal_hours": 3.0,
+    "study_progress": 0.0,
+    "focus_mode": "study",
+    "schedule": [],
+    "tasks": [],
+    "checkins": [
+      {
+        "type": "mood",
+        "emotion": "sad",
+        "intensity": "normal",
+        "timestamp": "2026-03-24T14:04:20"
+      }
+    ],
+    "activity_log": [],
+    "activity_summary": {
+      "productive_minutes": 0.0,
+      "entertainment_minutes": 0.0,
+      "study_minutes": 0.0,
+      "coding_minutes": 0.0
+    },
+    "current_mood": "sad",
+    "last_active_app": "",
+    "last_window_title": "",
+    "created_at": "2026-03-24T14:04:20",
+    "updated_at": "2026-03-24T14:04:20"
+  },
+  "conversation_history": [],
+  "usage": {
+    "most_used_apps": {},
+    "frequent_commands": {},
+    "user_habits": {
+      "last_command": "",
+      "last_category": "",
+      "last_active_at": "",
+      "last_app_opened": "",
+      "last_coding_activity": ""
+    }
+  },
+  "task_history": [],
+  "mood_history": {
+    "2026-03-24": "sad"
+  },
+  "emotion_history": {
+    "2026-03-24": "sad"
+  },
+  "updated_at": "2026-03-24T14:04:20"
+}

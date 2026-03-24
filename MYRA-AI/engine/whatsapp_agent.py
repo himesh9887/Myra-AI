@@ -191,13 +191,15 @@ class WhatsAppAgent:
 
     def send_message(self, target, message):
         try:
-            if self._send_message_via_protocol(target, message):
+            if self._looks_like_phone_number(target) and self._send_message_via_protocol(target, message):
                 return "Message sent Boss."
             if self._open_target_chat_desktop(target):
                 if self._send_text_to_current_chat(message, target=target):
                     return "Message sent Boss."
                 if self._internet_available() and self._send_message_via_web(target, message):
                     return "Message sent Boss."
+            if not self._looks_like_phone_number(target) and self._send_message_via_protocol(target, message):
+                return "Message sent Boss."
             return f"Boss, {target} ki chat khol di hai, lekin auto-send complete nahi ho paya."
         except Exception as exc:
             return f"Boss, WhatsApp message bhejte time issue aa gaya. {exc}"
@@ -466,10 +468,15 @@ class WhatsAppAgent:
             return False
 
         self.open_whatsapp()
+        if self._looks_like_phone_number(target_name):
+            self._open_phone_chat(target_name)
+            return self._wait_for_chat_ready(target_name)
+        if self._open_named_chat_desktop(target_name):
+            return True
         if self._resolve_contact(target_name):
             self._open_phone_chat(target_name)
             return self._wait_for_chat_ready(target_name)
-        return self._open_named_chat_desktop(target_name)
+        return False
 
     def _open_named_chat_desktop(self, target):
         document = self._desktop_document(wait_seconds=12)
@@ -508,27 +515,24 @@ class WhatsAppAgent:
         self._focus_desktop_window()
         composer = self._wait_for_composer_desktop(target=target)
         if composer is None:
-            return False
+            return self._send_text_via_window_geometry(message)
 
         try:
             composer.click_input()
         except Exception:
-            return False
+            return self._send_text_via_window_geometry(message)
 
         time.sleep(0.2)
-        self._paste_text(message)
+        if not self._replace_composer_text(composer, message):
+            return self._send_text_via_window_geometry(message)
         time.sleep(0.35)
         if self._click_send_button_desktop(timeout_seconds=2.5):
             return True
-        if pyautogui is not None:
-            pyautogui.press("enter")
-            time.sleep(0.4)
+        if self._click_send_button_near_composer(composer):
             return True
-        try:
-            composer.type_keys("{ENTER}")
+        if self._press_enter_and_verify_send(composer):
             return True
-        except Exception:
-            return False
+        return self._send_text_via_window_geometry(message)
 
     def _click_call_button(self):
         self._focus_desktop_window()
@@ -554,11 +558,7 @@ class WhatsAppAgent:
         return False
 
     def _click_send_button_desktop(self, timeout_seconds=3):
-        document = self._desktop_document(wait_seconds=max(timeout_seconds, 1))
-        if document is None:
-            return False
-
-        button = self._find_toolbar_button(document, "send", timeout_seconds=timeout_seconds)
+        button = self._find_send_button_desktop(timeout_seconds=timeout_seconds)
         if button is None:
             return False
         try:
@@ -567,6 +567,78 @@ class WhatsAppAgent:
             return True
         except Exception:
             return False
+
+    def _find_send_button_desktop(self, timeout_seconds=3):
+        document = self._desktop_document(wait_seconds=max(timeout_seconds, 1))
+        if document is None:
+            return None
+
+        fragments = ("send", "send message", "send now", "submit")
+        deadline = time.time() + max(timeout_seconds, 1)
+        while time.time() < deadline:
+            for node in self._desktop_nodes(document, depth=12):
+                if self._node_type(node) not in {"Button", "Hyperlink"}:
+                    continue
+                node_name = self._node_name(node).strip().lower()
+                if not node_name:
+                    continue
+                if any(fragment == node_name or fragment in node_name for fragment in fragments):
+                    return node
+            time.sleep(0.2)
+            document = self._desktop_document(wait_seconds=1)
+            if document is None:
+                break
+        return None
+
+    def _send_text_via_window_geometry(self, message, use_existing_text=False):
+        if pyautogui is None:
+            return False
+        window = self._desktop_window(wait_seconds=3)
+        if window is None:
+            return False
+        try:
+            window.set_focus()
+        except Exception:
+            pass
+        try:
+            rect = window.rectangle()
+        except Exception:
+            return False
+
+        input_points = [
+            (int((rect.left + rect.right) / 2), max(rect.top + 80, rect.bottom - 72)),
+            (int((rect.left + rect.right) / 2), max(rect.top + 80, rect.bottom - 92)),
+            (int((rect.left + rect.right) / 2), max(rect.top + 80, rect.bottom - 112)),
+        ]
+        send_points = [
+            (max(rect.left + 90, rect.right - 60), max(rect.top + 80, rect.bottom - 72)),
+            (max(rect.left + 90, rect.right - 82), max(rect.top + 80, rect.bottom - 72)),
+            (max(rect.left + 90, rect.right - 60), max(rect.top + 80, rect.bottom - 96)),
+        ]
+
+        for input_x, input_y in input_points:
+            try:
+                pyautogui.click(input_x, input_y)
+                time.sleep(0.2)
+                if not use_existing_text:
+                    pyautogui.hotkey("ctrl", "a")
+                    time.sleep(0.1)
+                    pyautogui.press("backspace")
+                    time.sleep(0.1)
+                    self._paste_text(message)
+                    time.sleep(0.35)
+                for send_x, send_y in send_points:
+                    pyautogui.click(send_x, send_y)
+                    time.sleep(0.35)
+                    if self._find_send_button_desktop(timeout_seconds=0.6) is None:
+                        return True
+                pyautogui.press("enter")
+                time.sleep(0.4)
+                if self._find_send_button_desktop(timeout_seconds=0.6) is None:
+                    return True
+            except Exception:
+                continue
+        return False
 
     def _launch_file_to_current_chat(self, file_path):
         executable = self._find_desktop_executable()
@@ -797,6 +869,19 @@ class WhatsAppAgent:
             return
         self._paste_text(text)
 
+    def _replace_composer_text(self, composer, value):
+        text = str(value)
+        if pyautogui is not None:
+            self._replace_focused_text(text)
+            return True
+        try:
+            composer.type_keys("^a{BACKSPACE}", with_spaces=True)
+            time.sleep(0.1)
+            composer.type_keys(text, with_spaces=True)
+            return True
+        except Exception:
+            return False
+
     def _paste_text(self, value):
         text = str(value)
         if pyperclip is not None and pyautogui is not None:
@@ -1010,19 +1095,60 @@ class WhatsAppAgent:
         return True
 
     def _confirm_prefilled_send(self):
+        # WhatsApp desktop can take a few seconds to foreground the chat opened
+        # by the protocol handler. Retry a few send strategies and only
+        # report success when one of them actually triggers.
+        for delay in (4.0, 2.5, 2.5):
+            time.sleep(delay)
+            self._focus_desktop_window()
+            if self._click_send_button_desktop(timeout_seconds=1.4):
+                return True
+            composer = self._wait_for_composer_desktop(timeout_seconds=1.4)
+            if composer is None:
+                if self._send_text_via_window_geometry("", use_existing_text=True):
+                    return True
+                continue
+            if self._click_send_button_near_composer(composer):
+                return True
+            if self._press_enter_and_verify_send(composer):
+                return True
+        return False
+
+    def _click_send_button_near_composer(self, composer):
         if pyautogui is None:
             return False
+        try:
+            rect = composer.rectangle()
+            window = self._desktop_window(wait_seconds=2)
+            window_rect = window.rectangle() if window is not None else rect
+            x_positions = [
+                min(rect.right + 22, window_rect.right - 36),
+                min(rect.right + 36, window_rect.right - 36),
+                min(rect.right + 52, window_rect.right - 36),
+            ]
+            y = int((rect.top + rect.bottom) / 2)
+            for x in x_positions:
+                pyautogui.click(x, y)
+                time.sleep(0.35)
+                if self._find_send_button_desktop(timeout_seconds=0.6) is None:
+                    return True
+            return False
+        except Exception:
+            return False
 
-        # WhatsApp desktop can take a few seconds to foreground the chat opened
-        # by the protocol handler. Retry Enter a few times so the prefilled
-        # message gets sent even when the app is still loading.
-        for delay in (5.0, 3.5, 3.5):
-            time.sleep(delay)
-            try:
+    def _press_enter_and_verify_send(self, composer):
+        had_send_button = self._find_send_button_desktop(timeout_seconds=0.8) is not None
+        try:
+            if pyautogui is not None:
                 pyautogui.press("enter")
-            except Exception:
-                return False
-        return True
+            else:
+                composer.type_keys("{ENTER}", with_spaces=True)
+        except Exception:
+            return False
+        time.sleep(0.45)
+        if not had_send_button:
+            return True
+        return self._find_send_button_desktop(timeout_seconds=0.8) is None
 
     def _trigger_toolbar_action(self, action):
         if pyautogui is None:
@@ -1186,6 +1312,10 @@ class WhatsAppAgent:
         if re.fullmatch(r"\+?\d{10,15}", compact):
             return compact if compact.startswith("+") else f"+{compact}"
         return self.contacts.get(candidate.lower(), "")
+
+    def _looks_like_phone_number(self, value):
+        compact = re.sub(r"\s+", "", str(value).strip())
+        return bool(re.fullmatch(r"\+?\d{10,15}", compact))
 
     def _resolve_path(self, value):
         candidate = Path(str(value).strip().strip('"').strip("'"))

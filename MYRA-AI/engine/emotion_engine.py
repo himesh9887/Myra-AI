@@ -59,6 +59,10 @@ class EmotionEngine:
                 r"\bdown\b",
                 r"\bupset\b",
                 r"\bheartbroken\b",
+                r"\bbreak ?up\b",
+                r"\bdhokha\b",
+                r"\bbetray(?:ed|al)?\b",
+                r"\bcheat(?:ed)?\b",
                 r"\bquiet\b",
             ),
             "tired": (

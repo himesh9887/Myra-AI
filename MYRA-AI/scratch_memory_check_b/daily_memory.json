@@ -1,0 +1,39 @@
+{
+  "current_date": "2026-03-24",
+  "days": {
+    "2026-03-24": {
+      "date": "2026-03-24",
+      "subject": "",
+      "exam_date": "",
+      "exam_start": "",
+      "exam_end": "",
+      "exam_feedback": "",
+      "awaiting_exam_feedback": false,
+      "study_goal_hours": 3.0,
+      "study_progress": 0.0,
+      "focus_mode": "study",
+      "schedule": [],
+      "tasks": [],
+      "checkins": [
+        {
+          "type": "mood",
+          "emotion": "sad",
+          "intensity": "normal",
+          "timestamp": "2026-03-24T14:04:20"
+        }
+      ],
+      "activity_log": [],
+      "activity_summary": {
+        "productive_minutes": 0.0,
+        "entertainment_minutes": 0.0,
+        "study_minutes": 0.0,
+        "coding_minutes": 0.0
+      },
+      "current_mood": "sad",
+      "last_active_app": "",
+      "last_window_title": "",
+      "created_at": "2026-03-24T14:04:20",
+      "updated_at": "2026-03-24T14:04:20"
+    }
+  }
+}

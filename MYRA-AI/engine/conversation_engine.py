@@ -31,23 +31,27 @@ class ConversationEngine:
 
     def startup_message(self, context: dict | None = None) -> str:
         context = context or {}
+        greeting = self._startup_greeting()
+        exam_prompt = self._exam_event_prompt(context)
         contextual_prompt = self._context_follow_up(context)
-        hour = datetime.now().hour
-        if hour < 12:
-            if contextual_prompt:
-                return contextual_prompt
+
+        if exam_prompt:
+            return f"{greeting}... {exam_prompt}"
+
+        if contextual_prompt:
+            return f"{greeting}... {contextual_prompt}"
+
+        if "morning" in greeting.lower():
             schedule_text = self._schedule_preview(context)
             if schedule_text:
-                return f"Good Morning Boss... aaj ka scene ye hai: {schedule_text}"
-            return "Good Morning Boss... uth gaya kya?"
-        if hour < 18:
-            if contextual_prompt:
-                return contextual_prompt
+                return f"{greeting}... aaj ka scene ye hai: {schedule_text}"
+            return f"{greeting}... uth gaya kya?"
+
+        if "afternoon" in greeting.lower():
             exam_nudge = self._exam_nudge(context)
-            return exam_nudge or "Good afternoon Boss... aaj ka scene kya hai?"
-        if contextual_prompt:
-            return contextual_prompt
-        return "Good evening Boss... aaj productive day tha ya chill?"
+            return f"{greeting}... {exam_nudge}" if exam_nudge else f"{greeting}... aaj ka scene kya hai?"
+
+        return f"{greeting}... aaj productive day tha ya chill?"
 
     def friendly_reply(self, text: str, context: dict | None = None) -> str:
         normalized = self._normalize(text)
@@ -298,6 +302,44 @@ class ConversationEngine:
             lines.append(f"{slot} - {title}" if slot else title)
         return " | ".join(lines)
 
+    def _startup_greeting(self) -> str:
+        hour = datetime.now().hour
+        if hour < 12:
+            return "Good Morning Boss"
+        if hour < 18:
+            return "Good Afternoon Boss"
+        return "Good Evening Boss"
+
+    def _exam_event_prompt(self, context: dict | None = None) -> str:
+        context = context or {}
+        daily = context.get("daily_memory") or {}
+        exam_date = str(daily.get("exam_date") or context.get("exam_date") or "").strip()
+        subject = str(daily.get("subject") or context.get("subject") or "exam").strip()
+        subject_label = f"{subject} " if subject and subject.lower() != "exam" else ""
+        exam_start = str(daily.get("exam_start") or "").strip()
+        exam_end = str(daily.get("exam_end") or "").strip()
+        exam_feedback = str(daily.get("exam_feedback") or "").strip()
+        today_key = str(datetime.now().date())
+
+        if exam_date != today_key:
+            return ""
+
+        if exam_start and exam_end:
+            start_dt = self._time_for_today(exam_start)
+            end_dt = self._time_for_today(exam_end)
+            if start_dt and end_dt:
+                now = datetime.now()
+                if now < start_dt:
+                    return f"yaad hai na... aaj {exam_start} se {exam_end} tera {subject_label}exam hai."
+                if start_dt <= now <= end_dt:
+                    return "abhi tera exam chal raha hoga... focus kar."
+                if now > end_dt and not exam_feedback:
+                    return "exam ho gaya? kaisa gaya?"
+
+        if not exam_feedback:
+            return f"yaad hai na... aaj tera {subject_label}exam hai."
+        return ""
+
     def _context_follow_up(self, context: dict | None = None) -> str:
         context = context or {}
         snapshot = context.get("conversation_memory") or {}
@@ -336,6 +378,13 @@ class ConversationEngine:
         except ValueError:
             return None
         return (target - datetime.now().date()).days
+
+    def _time_for_today(self, time_text: str):
+        try:
+            parsed = datetime.strptime(time_text, "%H:%M").time()
+        except ValueError:
+            return None
+        return datetime.combine(datetime.now().date(), parsed)
 
     def _daily_value(self, context: dict, key: str, default=0):
         daily = context.get("daily_memory") or {}
