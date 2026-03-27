@@ -13,11 +13,11 @@
 - `I`: `image`, `internet`
 - `L`: `lock`, `listen`
 - `M`: `memory`, `message`, `minimize`, `mood`, `mute`
-- `N`: `network`, `notepad`
+- `N`: `network`, `netcontrol`, `notepad`
 - `O`: `open`
 - `P`: `play`, `process`, `pc status`
 - `R`: `RAM`, `reminder`, `restart`
-- `S`: `screenshot`, `screen awareness`, `schedule`, `search`, `settings`, `shutdown`, `sleep`, `small talk`, `spotify`, `switch window`, `system status`
+- `S`: `screenshot`, `screen awareness`, `schedule`, `search`, `settings`, `shutdown`, `sleep`, `small talk`, `spotify`, `study mode`, `switch window`, `system status`
 - `T`: `task manager`, `time`
 - `V`: `volume`, `voice message`, `vs code`
 - `W`: `weather`, `web`, `whatsapp`, `wifi`
@@ -186,6 +186,29 @@ MYRA in messages se emotion detect karke supportive, funny, ya motivational repl
 - `network status batao`
 - `wifi speed batao`
 - `internet speed batao`
+
+## NetControl Commands
+
+- `check network` -> Show internet status
+- `scan wifi` -> Show nearby WiFi
+- `internet off` -> Disable internet (simulated)
+- `internet on` -> Enable internet
+- `block site <name>` -> Block a website
+- `start focus mode` -> Start focus session
+- `stop focus mode` -> Stop focus
+- `study mode on` -> Ask duration and start strict timer lock
+- `study mode on 2 hours` -> Start strict timer lock directly
+- `study mode off` -> Ask for passcode and disable study mode
+- `study mood on` -> Same as study mode on
+- `study mood off` -> Same as study mode off
+- `2 hours` or `30 min` -> Duration reply while Study Mode is waiting
+- `1234` -> Default unlock passcode when Study Mode asks
+- `study mode rule` -> Sirf MYRA Dashboard, ChatGPT, aur VS Code allowed hain. Supported browser sirf ChatGPT aur localhost ke liye restricted rahega; baaki apps/sites block ya close ho jayenge
+- `start vision monitoring` -> Start face, focus, and noise monitoring during Study Mode
+- `stop vision monitoring` -> Pause vision monitoring while Study Mode stays active
+- `show vision monitoring status` -> Show current face/focus/noise monitor state
+- `show logs` -> Show activity logs
+- `open netcontrol dashboard` -> Open dashboard UI
 
 ## Volume Commands
 

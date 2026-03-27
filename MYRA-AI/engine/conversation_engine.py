@@ -4,6 +4,8 @@ import random
 import re
 from datetime import datetime
 
+from help_command import get_netcontrol_help
+
 from engine.emotion_engine import EmotionEngine, EmotionSignal
 from engine.emotion_reply_engine import EmotionReplyEngine
 
@@ -192,10 +194,14 @@ class ConversationEngine:
         return self.handle_greeting(text)
 
     def general_help(self) -> str:
-        return (
-            "Arey Boss, coding, debugging, apps, files, folders, time, date, reminders, memory, schedule, screen scene... sab handle kar lunga. "
+        summary = (
+            "Arey Boss, coding, debugging, apps, files, folders, time, date, reminders, memory, schedule, screen scene, aur NetControl se network status, WiFi scan, blocked sites, focus dashboard aur study mode sab handle kar lunga. "
             "Tu bol next kya build karna hai?"
         )
+        try:
+            return f"{summary}\n\n{get_netcontrol_help()}"
+        except Exception:
+            return summary
 
     def is_greeting(self, text: str) -> bool:
         normalized = self._normalize(text)

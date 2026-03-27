@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MYRA NetControl</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/frontend/dashboard/netcontrol/netcontrol.css">
+</head>
+<body>
+  <div class="page-shell">
+    <aside class="sidebar glass-panel">
+      <div class="brand-lockup">
+        <div class="brand-orb">NC</div>
+        <div>
+          <p class="eyebrow">MYRA SYSTEMS</p>
+          <h1>NetControl</h1>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#overview">Overview</a>
+        <a href="#wifi">WiFi Scanner</a>
+        <a href="#blocker">Site Blocker</a>
+        <a href="#focus">Focus Mode</a>
+        <a href="#study">Study Mode</a>
+        <a href="#vision">Vision Monitor</a>
+        <a href="#logs">Logs</a>
+      </nav>
+
+      <div class="sidebar-card">
+        <p class="eyebrow">Simulation Safety</p>
+        <p class="sidebar-copy">Internet toggle stays simulated, but Study Mode can apply local browser rules, hosts protection, and blocked-app sweeps on Windows. Keep your unlock passcode handy.</p>
+      </div>
+
+      <div class="sidebar-card">
+        <p class="eyebrow">AI Suggestion</p>
+        <p id="focus-suggestion" class="sidebar-copy">Best time to focus detected...</p>
+      </div>
+    </aside>
+
+    <main class="dashboard">
+      <section id="overview" class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">TACTICAL NETWORK OPERATIONS</p>
+          <h2>Smart network awareness for MYRA's command brain</h2>
+          <p class="hero-text">Live telemetry, simulated switching, focus defense, and browser-based control in one responsive dashboard.</p>
+        </div>
+        <div class="hero-badges">
+          <span id="backend-pill" class="status-pill">BOOTING</span>
+          <span class="status-pill status-pill-soft">AUTO REFRESH 4S</span>
+        </div>
+      </section>
+
+      <section class="cards-grid">
+        <article class="metric-card glass-panel">
+          <p class="card-label">Internet Status</p>
+          <h3 id="status-value">ONLINE</h3>
+          <span id="status-subtitle" class="card-subtitle">Simulation active</span>
+        </article>
+        <article class="metric-card glass-panel">
+          <p class="card-label">Speed</p>
+          <h3 id="speed-value">0.0 Mbps</h3>
+          <span class="card-subtitle">Realtime throughput estimate</span>
+        </article>
+        <article class="metric-card glass-panel">
+          <p class="card-label">Ping</p>
+          <h3 id="ping-value">--</h3>
+          <span class="card-subtitle">Latency pulse</span>
+        </article>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="glass-panel chart-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Live Graph</p>
+              <h3>Speed telemetry</h3>
+            </div>
+            <span class="mini-chip">Mbps</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="speed-chart" aria-label="Network speed chart"></canvas>
+          </div>
+        </article>
+
+        <article id="wifi" class="glass-panel wifi-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">WiFi Scanner</p>
+              <h3>Nearby networks</h3>
+            </div>
+            <button id="rescan-wifi" class="ghost-button" type="button">Rescan</button>
+          </div>
+          <div id="wifi-list" class="wifi-list scan-loader"></div>
+        </article>
+
+        <article class="glass-panel toggle-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Internet Control</p>
+              <h3>Simulation switch</h3>
+            </div>
+          </div>
+          <label class="power-switch" for="internet-toggle">
+            <input id="internet-toggle" type="checkbox">
+            <span class="switch-track"></span>
+            <span class="switch-meta">
+              <strong id="toggle-label">Internet ON</strong>
+              <small>Safe simulation only</small>
+            </span>
+          </label>
+        </article>
+
+        <article id="blocker" class="glass-panel blocker-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Website Blocker</p>
+              <h3>Control distraction targets</h3>
+            </div>
+          </div>
+          <div class="inline-form">
+            <input id="site-input" type="text" placeholder="youtube.com">
+            <button id="block-site-button" type="button">Add</button>
+          </div>
+          <div id="blocked-sites" class="blocked-sites"></div>
+        </article>
+
+        <article id="focus" class="glass-panel focus-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Focus Mode</p>
+              <h3>Timed productivity shield</h3>
+            </div>
+          </div>
+          <div class="focus-form">
+            <label>
+              <span>Start</span>
+              <input id="focus-start" type="time">
+            </label>
+            <label>
+              <span>End</span>
+              <input id="focus-end" type="time">
+            </label>
+          </div>
+          <div class="focus-actions">
+            <button id="focus-start-button" type="button">Start Focus</button>
+            <button id="focus-stop-button" class="ghost-button" type="button">Stop</button>
+          </div>
+          <div class="countdown-panel">
+            <span class="eyebrow">Countdown</span>
+            <strong id="countdown-value">00:00</strong>
+            <span id="focus-window-label" class="card-subtitle">Ready to engage</span>
+          </div>
+        </article>
+
+        <article id="study" class="glass-panel study-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Study Mode Safe Panel</p>
+              <h3>Strict focus lock with timer</h3>
+            </div>
+            <span id="study-status-chip" class="mini-chip">UNLOCKED</span>
+          </div>
+          <p id="study-status-line" class="study-status-line">Status: UNLOCKED</p>
+          <div class="study-timer-grid">
+            <div class="study-timer-card">
+              <p class="eyebrow">Remaining Time</p>
+              <strong id="study-remaining-value">00:00:00</strong>
+              <span id="study-end-label" class="card-subtitle">Auto unlock at --</span>
+            </div>
+            <div class="study-timer-card">
+              <p class="eyebrow">Protection Layers</p>
+              <div class="study-badges">
+                <span id="study-process-chip" class="mini-chip">PROCESS WATCH</span>
+                <span id="study-browser-chip" class="mini-chip">WEB SHIELD</span>
+              </div>
+              <span id="study-protection-copy" class="card-subtitle">Ready to enforce local app and website lock.</span>
+            </div>
+          </div>
+          <div class="study-grid">
+            <div class="study-column">
+              <p class="eyebrow">Allowed</p>
+              <div id="study-allow-list" class="study-list">
+                <div class="study-list-item">MYRA Dashboard &#x2705;</div>
+                <div class="study-list-item">ChatGPT &#x2705;</div>
+                <div class="study-list-item">VS Code &#x2705;</div>
+              </div>
+            </div>
+            <div class="study-column">
+              <p class="eyebrow">Blocked</p>
+              <div id="study-blocked-list" class="study-list">
+                <div class="study-list-item study-list-item-danger">Everything else &#x274C;</div>
+              </div>
+            </div>
+          </div>
+          <div class="inline-form study-inline-form">
+            <input id="study-duration-input" type="text" placeholder="2 hours or 30 min">
+            <button id="study-mode-on-button" type="button">Enable Study Mode</button>
+            <button id="study-mode-off-button" class="ghost-button" type="button">Unlock (Passcode)</button>
+          </div>
+          <p id="study-unlock-hint" class="card-subtitle">MYRA stays available. You can always say "study mode off".</p>
+          <p id="study-mode-copy" class="card-subtitle">Study lock is disengaged.</p>
+        </article>
+
+        <article id="vision" class="glass-panel vision-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Vision Monitor Panel</p>
+              <h3>Face, focus, and noise tracking</h3>
+            </div>
+            <span id="vision-status-chip" class="mini-chip">IDLE</span>
+          </div>
+          <div class="vision-grid">
+            <div class="vision-card">
+              <p class="eyebrow">Face Status</p>
+              <strong id="vision-face-value">Unavailable</strong>
+              <span id="vision-face-copy" class="card-subtitle">Face detection waits for Study Mode.</span>
+            </div>
+            <div class="vision-card">
+              <p class="eyebrow">Focus Status</p>
+              <strong id="vision-focus-value">Unavailable</strong>
+              <span id="vision-focus-copy" class="card-subtitle">Eye tracking activates only during Study Mode.</span>
+            </div>
+            <div class="vision-card">
+              <p class="eyebrow">Noise Status</p>
+              <strong id="vision-noise-value">Unavailable</strong>
+              <span id="vision-noise-copy" class="card-subtitle">Realtime level only. No audio is stored.</span>
+            </div>
+          </div>
+          <div class="vision-meter-card">
+            <div class="vision-meter-head">
+              <span class="eyebrow">Noise Level Meter</span>
+              <strong id="vision-noise-meter-label">0%</strong>
+            </div>
+            <div class="vision-meter-track" aria-label="Noise level meter">
+              <div id="vision-noise-meter-fill" class="vision-meter-fill"></div>
+            </div>
+          </div>
+          <div class="vision-note-grid">
+            <div class="vision-note-card">
+              <p class="eyebrow">Warning Alerts</p>
+              <strong id="vision-warning-value">none</strong>
+              <span id="vision-warning-copy" class="card-subtitle">Voice alerts will speak only short focus prompts.</span>
+            </div>
+            <div class="vision-note-card">
+              <p class="eyebrow">Runtime</p>
+              <strong id="vision-runtime-value">Waiting</strong>
+              <span id="vision-runtime-copy" class="card-subtitle">No images, video, or audio recordings are stored.</span>
+            </div>
+          </div>
+          <div class="vision-actions">
+            <button id="vision-start-button" type="button">Start Vision Monitoring</button>
+            <button id="vision-stop-button" class="ghost-button" type="button">Stop Vision Monitoring</button>
+          </div>
+          <p id="vision-dependency-copy" class="card-subtitle">Dependencies will appear here once the monitor starts.</p>
+          <p id="vision-preview-copy" class="card-subtitle">Live webcam preview is optional and currently disabled for privacy-safe realtime monitoring.</p>
+        </article>
+
+        <article id="logs" class="glass-panel log-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Activity Logs</p>
+              <h3>Terminal feed</h3>
+            </div>
+          </div>
+          <div id="log-output" class="log-output scan-loader"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/frontend/dashboard/netcontrol/netcontrol.js"></script>
+</body>
+</html>

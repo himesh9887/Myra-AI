@@ -9,6 +9,7 @@ from agents import (
     BrowserAgent,
     DownloadAgent,
     FileAgent,
+    NetControlAgent,
     ResearchAgent,
     SystemAgent,
     WhatsAppAgent,
@@ -48,6 +49,7 @@ class AgentManager:
             "whatsapp": WhatsAppAgent(whatsapp=dependencies.get("whatsapp")),
             "download": DownloadAgent(download=dependencies.get("download")),
             "file": FileAgent(self.base_dir, files=dependencies.get("files")),
+            "netcontrol": NetControlAgent(self.base_dir, bridge=dependencies.get("netcontrol")),
             "app": AppAgent(apps=dependencies.get("apps")),
         }
         return self
@@ -63,6 +65,11 @@ class AgentManager:
         if not normalized:
             return "", None
 
+        netcontrol_agent = self._agents.get("netcontrol")
+        if netcontrol_agent is not None and hasattr(netcontrol_agent, "should_claim_input"):
+            if netcontrol_agent.should_claim_input(normalized):
+                return "netcontrol", netcontrol_agent
+
         if self._looks_like_research(normalized):
             return "research", self._agents["research"]
         if self._looks_like_whatsapp(normalized):
@@ -71,6 +78,8 @@ class AgentManager:
             return "download", self._agents["download"]
         if self._looks_like_file(normalized):
             return "file", self._agents["file"]
+        if self._looks_like_netcontrol(normalized):
+            return "netcontrol", self._agents["netcontrol"]
         if self._looks_like_automation(normalized):
             return "automation", self._agents["automation"]
         if self._looks_like_system(normalized):
@@ -125,6 +134,7 @@ class AgentManager:
             "research": ("browser",),
             "download": ("browser",),
             "automation": ("system", "app"),
+            "netcontrol": ("system", "browser"),
         }
         return fallback_map.get(primary, ())
 
@@ -259,6 +269,35 @@ class AgentManager:
             "open file",
         ]
         return any(token in normalized for token in file_tokens)
+
+    def _looks_like_netcontrol(self, normalized: str):
+        if normalized == "show logs":
+            return True
+        if normalized.startswith("block site "):
+            return True
+        if "focus mode" in normalized:
+            return True
+        if "vision monitor" in normalized or "vision monitoring" in normalized:
+            return True
+        if "study mode" in normalized or "study mood" in normalized:
+            return True
+        if "netcontrol" in normalized:
+            return True
+        if normalized in {"internet on", "internet off"}:
+            return True
+        return any(
+            token in normalized
+            for token in (
+                "check network",
+                "network status",
+                "internet status",
+                "internet speed",
+                "wifi status",
+                "scan wifi",
+                "wifi scan",
+                "network ping",
+            )
+        )
 
     def _looks_like_app(self, normalized: str):
         if self._looks_like_direct_site_open(normalized):

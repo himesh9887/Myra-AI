@@ -1,0 +1,37 @@
+{
+  "internetEnabled": true,
+  "blockedSites": [],
+  "studyMode": false,
+  "studyUnlockPending": false,
+  "allowedSites": [
+    "chat.openai.com",
+    "chatgpt.com"
+  ],
+  "allowedApps": [
+    "code.exe",
+    "chrome.exe",
+    "node.exe",
+    "python.exe",
+    "pythonw.exe"
+  ],
+  "passcode": "1234",
+  "focusMode": {
+    "active": false,
+    "start": null,
+    "end": null,
+    "startLabel": "",
+    "endLabel": "",
+    "remainingSeconds": 0,
+    "countdownLabel": "00:00",
+    "suggestion": "Best time to focus detected: 08:00 PM - 10:00 PM",
+    "protectedSites": [
+      "youtube.com",
+      "instagram.com",
+      "facebook.com",
+      "x.com"
+    ],
+    "lastStartedAt": null
+  },
+  "logs": [],
+  "lastUpdated": null
+}

@@ -43,6 +43,7 @@ from engine.internet_agent import InternetAgent
 from engine.memory_engine import MemoryEngine
 from engine.mood_tracker import MoodTracker
 from engine.netflix_agent import NetflixAgent
+from engine.netcontrol_bridge import NetControlBridge
 from engine.personality_engine import PersonalityEngine
 from engine.planner_ai import PlannerAI
 from engine.reminder_engine import ReminderEngine
@@ -120,6 +121,7 @@ class AssistantController(QObject):
         self.internet = InternetAgent()
         self.research = ResearchAgent()
         self.system = SystemControl(self.base_dir)
+        self.netcontrol = NetControlBridge(self.base_dir)
         self.spotify = SpotifyAgent()
         self.vision = CameraAgent(self.base_dir)
         self.object_detector = ObjectDetector(self.vision)
@@ -134,6 +136,7 @@ class AssistantController(QObject):
             browser=self.browser,
             download=self.downloads,
             files=self.files,
+            netcontrol=self.netcontrol,
             research=self.research,
             system=self.system,
             web=self.web,
@@ -148,6 +151,7 @@ class AssistantController(QObject):
             browser=self.browser,
             download=self.downloads,
             files=self.files,
+            netcontrol=self.netcontrol,
             research=getattr(self, "research", None),
             system=self.system,
             web=self.web,
@@ -166,6 +170,7 @@ class AssistantController(QObject):
         self._companion_thread = None
 
         threading.Thread(target=self.apps.refresh_index, daemon=True).start()
+        threading.Thread(target=self.netcontrol.ensure_server, daemon=True).start()
         self.scheduler.start(self._run_scheduled_command)
         self._start_companion_loop()
 
@@ -326,7 +331,8 @@ class AssistantController(QObject):
         routed_agent, _ = self.agent_manager.route(raw)
         self.memory.track_command(raw, routed.category)
         try:
-            result = self._route_command(normalized, raw)
+            study_mode_result = self._study_mode_guard(normalized, raw, routed, routed_agent)
+            result = study_mode_result if study_mode_result else self._route_command(normalized, raw)
         except Exception as exc:
             result = f"Boss, is command me thoda issue aa gaya. {exc}"
 
@@ -426,6 +432,95 @@ class AssistantController(QObject):
         if len(command.split()) >= 2:
             return self._ask_brain(raw)
         return self._friendly_fallback(raw)
+
+    def _study_mode_guard(self, normalized, raw, routed, routed_agent):
+        status = self.netcontrol.status_snapshot(refresh=True) if hasattr(self, "netcontrol") else {}
+        if not isinstance(status, dict) or not status.get("studyMode"):
+            return ""
+
+        if self.netcontrol.should_claim_input(raw):
+            return ""
+
+        if self._study_mode_allows_command(normalized, raw, routed, routed_agent):
+            return ""
+
+        message = "Boss, abhi study mode on hai. Sirf MYRA Dashboard, ChatGPT, aur VS Code allowed hain. Ye command study mode off hone ke baad chalega."
+        self.netcontrol.add_log(f"Unauthorized access attempt: {raw}")
+        return message
+
+    def _study_mode_allows_command(self, normalized, raw, routed, routed_agent):
+        if self._is_safe_study_mode_chat(normalized, routed):
+            return True
+
+        if normalized.startswith(("close ", "terminate ")):
+            return True
+
+        if self._is_allowed_study_mode_target(normalized, raw):
+            return True
+
+        if routed_agent == "netcontrol":
+            return True
+
+        return False
+
+    def _is_safe_study_mode_chat(self, normalized, routed):
+        category = str(getattr(routed, "category", "") or "")
+        if category in {"GREETING", "SMALL_TALK", "MEMORY_QUERY", "GENERAL_HELP"}:
+            return True
+
+        if category == "AI_QUESTION":
+            if self.internet.needs_latest_info(normalized):
+                return False
+            if decide_action(normalized) == "google":
+                return False
+            blocked_starters = ("open ", "launch ", "start ", "run ", "play ", "search ", "find ", "browse ", "download ", "send ", "call ")
+            return not normalized.startswith(blocked_starters)
+
+        return False
+
+    def _is_allowed_study_mode_target(self, normalized, raw):
+        compact = re.sub(r"[^a-z0-9.]+", " ", normalized).strip()
+        allowed_targets = {
+            "chatgpt",
+            "chat gpt",
+            "chat.openai.com",
+            "chat openai com",
+            "chatgpt.com",
+            "localhost",
+            "127.0.0.1",
+            "myra dashboard",
+            "netcontrol dashboard",
+            "dashboard",
+            "vs code",
+            "vscode",
+            "visual studio code",
+            "code",
+            "code exe",
+        }
+
+        if compact in allowed_targets:
+            return True
+
+        if "chat.openai.com" in normalized or "localhost" in normalized or "127.0.0.1" in normalized:
+            return True
+
+        open_match = re.search(r"\b(?:open|launch|start|run)\b\s+(.+)$", raw, re.IGNORECASE)
+        if open_match:
+            target = self._normalize_study_mode_target(open_match.group(1))
+            return target in allowed_targets
+
+        reverse_match = re.search(r"^(.+?)\s+\bopen\b$", raw, re.IGNORECASE)
+        if reverse_match:
+            target = self._normalize_study_mode_target(reverse_match.group(1))
+            return target in allowed_targets
+
+        return False
+
+    def _normalize_study_mode_target(self, value):
+        cleaned = str(value).lower().strip()
+        cleaned = cleaned.replace(".exe", " exe")
+        cleaned = re.sub(r"[^a-z0-9.]+", " ", cleaned)
+        return " ".join(cleaned.split())
 
     def _learn_from_execution(self, raw, routed):
         if not routed:

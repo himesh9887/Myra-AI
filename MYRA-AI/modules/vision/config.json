@@ -1,0 +1,23 @@
+{
+  "userName": "Himesh",
+  "cameraIndex": 0,
+  "frameIntervalMs": 350,
+  "faceMissingSeconds": 6,
+  "focusLossSeconds": 10,
+  "noiseThreshold": 0.055,
+  "noiseHoldSeconds": 3,
+  "voiceAlertsEnabled": true,
+  "voiceCooldownSeconds": 8,
+  "sampleRate": 16000,
+  "blockSize": 1024,
+  "maxNoiseLevel": 0.2,
+  "focusCenterMin": 0.22,
+  "focusCenterMax": 0.78,
+  "alertMessages": {
+    "generalFocus": "Himesh, focus bro.",
+    "faceMissing": "Face not detected, please come back.",
+    "focusLost": "You are distracted.",
+    "noiseDetected": "Background noise detected, stay focused.",
+    "noiseHigh": "Too much disturbance around you."
+  }
+}

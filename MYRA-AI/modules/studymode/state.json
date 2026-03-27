@@ -1,0 +1,82 @@
+{
+  "studyMode": false,
+  "endTime": null,
+  "remainingSeconds": 0,
+  "allowedApps": [
+    "code.exe",
+    "chrome.exe",
+    "node.exe",
+    "python.exe",
+    "pythonw.exe"
+  ],
+  "protectedProcesses": [
+    "code.exe",
+    "node.exe",
+    "python.exe",
+    "pythonw.exe",
+    "myra.exe",
+    "myra-ai.exe",
+    "cmd.exe",
+    "powershell.exe",
+    "pwsh.exe",
+    "windowsterminal.exe",
+    "openconsole.exe"
+  ],
+  "allowedSites": [
+    "chat.openai.com",
+    "chatgpt.com",
+    "localhost",
+    "127.0.0.1",
+    "::1"
+  ],
+  "passcode": "1234",
+  "pendingAction": "",
+  "pendingPrompt": "",
+  "lastStartedAt": null,
+  "lastStoppedAt": null,
+  "browserProtection": {
+    "browserProtectionReady": false,
+    "hostsApplied": false,
+    "policiesApplied": false,
+    "policyTargets": [],
+    "supportedBrowserProcesses": [],
+    "lastError": ""
+  },
+  "visionMonitor": {
+    "active": false,
+    "starting": false,
+    "available": false,
+    "manualDisabled": false,
+    "faceDetected": null,
+    "faceStatus": "unavailable",
+    "focus": null,
+    "focusStatus": "unavailable",
+    "noiseLevel": 0,
+    "noisePercent": 0,
+    "noiseAlert": false,
+    "noiseStatus": "unavailable",
+    "warning": "none",
+    "event": "",
+    "message": "Vision monitoring idle",
+    "previewAvailable": false,
+    "webcamAvailable": false,
+    "microphoneAvailable": false,
+    "voiceAlertsEnabled": false,
+    "dependencies": {
+      "opencv": false,
+      "mediapipe": false,
+      "numpy": false,
+      "sounddevice": false,
+      "pyttsx3": false
+    },
+    "supports": {
+      "faceDetection": false,
+      "eyeTracking": false,
+      "noiseDetection": false,
+      "voiceAlerts": false
+    },
+    "lastUpdated": null,
+    "lastError": ""
+  },
+  "logs": []
+}

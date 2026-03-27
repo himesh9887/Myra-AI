@@ -168,6 +168,8 @@ class TaskPlanner:
             return ("Execute the WhatsApp task", "whatsapp", "handle", goal, {})
         if agent_name == "file":
             return ("Handle the file operation", "file", "handle", goal, {})
+        if agent_name == "netcontrol":
+            return ("Run the NetControl workflow", "netcontrol", "handle", goal, {})
         if agent_name == "youtube":
             return ("Handle the media request", "youtube", "handle", goal, {})
         if agent_name == "system":

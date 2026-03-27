@@ -201,6 +201,7 @@ class MainWindow(QMainWindow):
             ("DIR", "Files", "open downloads", "Open Downloads"),
             ("PWR", "Lock", "lock screen", "Lock screen"),
             ("MED", "YouTube", "play Kesariya song", "Play Song"),
+            ("NET", "NetCtrl", "open netcontrol dashboard", "Open NetControl Dashboard"),
         ]
         for index, (icon_text, title_text, command, tooltip) in enumerate(quick_actions):
             button = QuickActionButton(icon_text, title_text, command, tooltip)
@@ -945,7 +946,7 @@ class MainWindow(QMainWindow):
             (("cpu",), [{"angle": 20, "distance": 0.34, "strength": 0.95}], "CPU scan", "cpu"),
             (("ram", "memory"), [{"angle": 160, "distance": 0.5, "strength": 0.88}], "RAM scan", "ram"),
             (("disk", "storage"), [{"angle": 238, "distance": 0.58, "strength": 0.82}], "Disk scan", "disk"),
-            (("internet", "wifi", "network"), [{"angle": 318, "distance": 0.72, "strength": 0.76}], "Network trace", "cpu"),
+            (("internet", "wifi", "network", "netcontrol", "focus mode", "block site", "logs"), [{"angle": 318, "distance": 0.72, "strength": 0.76}], "Network trace", "cpu"),
             (("whatsapp", "message", "call"), [{"angle": 128, "distance": 0.62, "strength": 0.9}], "Comms target", "battery"),
             (("youtube", "play", "song", "music"), [{"angle": 300, "distance": 0.4, "strength": 0.86}], "Media lock", "ram"),
             (("screenshot",), [{"angle": 44, "distance": 0.26, "strength": 1.0}], "Screen capture", "disk"),
