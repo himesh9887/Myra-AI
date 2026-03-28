@@ -1,21 +1,46 @@
 const fs = require("fs");
 const path = require("path");
-const { execFileSync } = require("child_process");
+const { execFileSync, spawn } = require("child_process");
 
 const HOSTS_MARKER_START = "# MYRA_STUDY_MODE_START";
 const HOSTS_MARKER_END = "# MYRA_STUDY_MODE_END";
-
 const SUPPORTED_BROWSERS = [
   {
     name: "Google Chrome",
     policyKey: "Google\\Chrome",
     processName: "chrome.exe",
+    launchPaths: [
+      path.join(process.env.ProgramFiles || "C:\\Program Files", "Google", "Chrome", "Application", "chrome.exe"),
+      path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Google", "Chrome", "Application", "chrome.exe"),
+      path.join(process.env.LocalAppData || "", "Google", "Chrome", "Application", "chrome.exe"),
+    ],
+    internalAllowEntries: [
+      "chrome://*",
+      "chrome-untrusted://*",
+      "chrome-search://*",
+    ],
   },
   {
     name: "Microsoft Edge",
     policyKey: "Microsoft\\Edge",
     processName: "msedge.exe",
+    launchPaths: [
+      path.join(process.env.ProgramFiles || "C:\\Program Files", "Microsoft", "Edge", "Application", "msedge.exe"),
+      path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Microsoft", "Edge", "Application", "msedge.exe"),
+      path.join(process.env.LocalAppData || "", "Microsoft", "Edge", "Application", "msedge.exe"),
+    ],
+    internalAllowEntries: [
+      "edge://*",
+      "edge-search://*",
+    ],
   },
+];
+
+const GENERIC_BROWSER_ALLOW_ENTRIES = [
+  "about:blank",
+  "blob:*",
+  "data:*",
+  "devtools://*",
 ];
 
 const DISTRACTION_HOSTS = [
@@ -164,6 +189,28 @@ function buildAllowEntries(allowlist = []) {
   return Array.from(entries);
 }
 
+function buildBrowserAllowEntries(browser, allowlist = []) {
+  const entries = new Set(buildAllowEntries(allowlist));
+
+  for (const entry of GENERIC_BROWSER_ALLOW_ENTRIES) {
+    addWildcardEntry(entries, entry);
+  }
+
+  for (const entry of Array.isArray(browser && browser.internalAllowEntries) ? browser.internalAllowEntries : []) {
+    addWildcardEntry(entries, entry);
+  }
+
+  return Array.from(entries);
+}
+
+function getSupportedBrowserProcesses() {
+  return SUPPORTED_BROWSERS.map((browser) => browser.processName);
+}
+
+function getSupportedPolicyTargets() {
+  return SUPPORTED_BROWSERS.map((browser) => browser.name);
+}
+
 class SiteBlocker {
   constructor({ onLog } = {}) {
     this.onLog = typeof onLog === "function" ? onLog : () => {};
@@ -209,7 +256,8 @@ class SiteBlocker {
     return result;
   }
 
-  stop() {
+  stop(options = {}) {
+    const quiet = options && options.quiet === true;
     const result = {
       browserProtectionReady: false,
       hostsApplied: false,
@@ -224,7 +272,9 @@ class SiteBlocker {
       result.hostsApplied = true;
     } catch (error) {
       result.lastError = error.message;
-      this.onLog(`Hosts restore warning: ${error.message}`);
+      if (!quiet) {
+        this.onLog(`Hosts restore warning: ${error.message}`);
+      }
     }
 
     try {
@@ -234,7 +284,9 @@ class SiteBlocker {
       result.supportedBrowserProcesses = policyResult.supportedBrowserProcesses;
     } catch (error) {
       result.lastError = result.lastError || error.message;
-      this.onLog(`Browser policy restore warning: ${error.message}`);
+      if (!quiet) {
+        this.onLog(`Browser policy restore warning: ${error.message}`);
+      }
     }
 
     return result;
@@ -282,13 +334,13 @@ class SiteBlocker {
       };
     }
 
-    const allowEntries = buildAllowEntries(allowlist);
     const policyTargets = [];
     const supportedBrowserProcesses = [];
     const errors = [];
 
     for (const browser of SUPPORTED_BROWSERS) {
       try {
+        const allowEntries = buildBrowserAllowEntries(browser, allowlist);
         this._writeBrowserPolicy(browser, allowEntries);
         policyTargets.push(browser.name);
         supportedBrowserProcesses.push(browser.processName);
@@ -381,11 +433,93 @@ class SiteBlocker {
       ...options,
     });
   }
+
+  refreshBrowsers(options = {}) {
+    if (process.platform !== "win32") {
+      return {
+        restarted: [],
+        errors: [],
+      };
+    }
+
+    const restoreLastSession = options.restoreLastSession !== false;
+    const restarted = [];
+    const errors = [];
+
+    for (const browser of SUPPORTED_BROWSERS) {
+      if (!this._isProcessRunning(browser.processName)) {
+        continue;
+      }
+
+      try {
+        execFileSync("taskkill", ["/IM", browser.processName, "/F"], {
+          windowsHide: true,
+          stdio: "ignore",
+        });
+      } catch (error) {
+        errors.push(`${browser.name}: ${error.message}`);
+        continue;
+      }
+
+      const executable = this._resolveBrowserExecutable(browser);
+      if (!executable) {
+        errors.push(`${browser.name}: executable not found`);
+        continue;
+      }
+
+      try {
+        const args = restoreLastSession ? ["--restore-last-session"] : [];
+        const child = spawn(executable, args, {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        child.unref();
+        restarted.push(browser.name);
+      } catch (error) {
+        errors.push(`${browser.name}: ${error.message}`);
+      }
+    }
+
+    return {
+      restarted,
+      errors,
+    };
+  }
+
+  _isProcessRunning(processName) {
+    try {
+      const output = execFileSync("tasklist", [
+        "/FI",
+        `IMAGENAME eq ${processName}`,
+        "/FO",
+        "CSV",
+        "/NH",
+      ], {
+        windowsHide: true,
+        encoding: "utf-8",
+      });
+      return String(output || "").toLowerCase().includes(String(processName || "").toLowerCase());
+    } catch (error) {
+      return false;
+    }
+  }
+
+  _resolveBrowserExecutable(browser) {
+    const candidates = Array.isArray(browser && browser.launchPaths) ? browser.launchPaths : [];
+    for (const candidate of candidates) {
+      if (candidate && fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return "";
+  }
 }
 
 module.exports = {
   SiteBlocker,
   buildAllowEntries,
+  buildBrowserAllowEntries,
   expandAllowedSites,
   normalizeSiteHost,
 };

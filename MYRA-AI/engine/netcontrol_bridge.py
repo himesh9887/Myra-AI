@@ -4,6 +4,7 @@ import atexit
 import json
 import os
 import re
+import socket
 import subprocess
 import time
 import urllib.error
@@ -18,6 +19,7 @@ class NetControlBridge:
         self.host = host
         self.port = int(port)
         self.server_script = self.base_dir / "netcontrol_server.js"
+        self.study_state_path = self.base_dir / "modules" / "studymode" / "state.json"
         self._process = None
         self.awaiting_study_unlock = False
         self.awaiting_study_duration = False
@@ -69,8 +71,16 @@ class NetControlBridge:
             return False, "Boss, NetControl backend start nahi ho pa raha."
 
         try:
-            payload = self.request("POST", "/api/netcontrol/command", {"command": normalized})
+            payload = self.request(
+                "POST",
+                "/api/netcontrol/command",
+                {"command": normalized},
+                timeout=self._command_timeout_seconds(normalized),
+            )
         except Exception as exc:  # pragma: no cover
+            recovered = self._recover_command_timeout(normalized, exc)
+            if recovered:
+                return recovered
             return False, f"Boss, NetControl se baat nahi ho pa rahi. {exc}"
 
         open_url = str(payload.get("openUrl", "")).strip()
@@ -92,6 +102,10 @@ class NetControlBridge:
                 return self.request("GET", "/api/netcontrol/status", timeout=1.5)
             except Exception:
                 pass
+        local_state = self._load_local_study_state()
+        if local_state:
+            self._sync_state(local_state)
+            return local_state
         return {
             "studyMode": self.study_mode_active,
             "studyUnlockPending": self.awaiting_study_unlock,
@@ -143,11 +157,26 @@ class NetControlBridge:
         normalized = " ".join(str(command or "").strip().split()).lower()
         if not normalized:
             return False
-        if self.awaiting_study_duration and self.looks_like_duration(command):
+        if "study mode" in normalized or "study mood" in normalized:
             return True
-        if self.awaiting_study_unlock and self.looks_like_passcode(command):
+
+        duration_like = self.looks_like_duration(command)
+        passcode_like = self.looks_like_passcode(command)
+        unlock_like = normalized == "unlock"
+
+        # Refresh live study state before we discard short follow-up replies like
+        # "1234" or "10 minutes". These often arrive after the pending prompt was
+        # opened from another surface (dashboard button, previous session, etc.).
+        if (duration_like or passcode_like or unlock_like) and not (
+            self.awaiting_study_duration or self.awaiting_study_unlock
+        ):
+            self.status_snapshot(refresh=True)
+
+        if self.awaiting_study_duration and duration_like:
             return True
-        return "study mode" in normalized or "study mood" in normalized
+        if self.awaiting_study_unlock and (passcode_like or unlock_like):
+            return True
+        return False
 
     def looks_like_duration(self, command: str) -> bool:
         normalized = " ".join(str(command or "").strip().split()).lower()
@@ -188,3 +217,61 @@ class NetControlBridge:
         self.awaiting_study_duration = bool(payload.get("studyDurationPending", payload.get("requiresDuration", False)))
         self.study_mode_active = bool(payload.get("studyMode", False))
         self.study_pending_action = str(payload.get("pendingAction", "") or "").strip()
+
+    def _load_local_study_state(self):
+        if not self.study_state_path.exists():
+            return {}
+        try:
+            payload = json.loads(self.study_state_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+
+        pending_action = str(payload.get("pendingAction", "") or "").strip()
+        payload["studyMode"] = bool(payload.get("studyMode", False))
+        payload["studyUnlockPending"] = pending_action == "await_passcode"
+        payload["studyDurationPending"] = pending_action == "await_duration"
+        payload["pendingAction"] = pending_action
+        payload["pendingPrompt"] = str(payload.get("pendingPrompt", "") or "").strip()
+        return payload
+
+    def _command_timeout_seconds(self, command: str) -> float:
+        normalized = " ".join(str(command or "").strip().split()).lower()
+        if not normalized:
+            return 5.0
+        if "study mode" in normalized or "study mood" in normalized:
+            return 20.0
+        if self.looks_like_duration(normalized) or self.looks_like_passcode(normalized) or normalized == "unlock":
+            return 20.0
+        if "vision monitor" in normalized or "vision monitoring" in normalized:
+            return 12.0
+        return 6.0
+
+    def _recover_command_timeout(self, command: str, error):
+        message = str(error or "").strip().lower()
+        if "timed out" not in message and not isinstance(error, socket.timeout):
+            return None
+
+        state = self.status_snapshot(refresh=False)
+        if not isinstance(state, dict):
+            return None
+
+        normalized = " ".join(str(command or "").strip().split()).lower()
+        pending_action = str(state.get("pendingAction", "") or "").strip()
+        remaining = str(state.get("remainingLabel", "") or "").strip()
+
+        if ("study mode on" in normalized or "study mode" in normalized) and pending_action == "await_duration":
+            return True, state.get("pendingPrompt") or "Enter duration (e.g., 2 hours, 30 minutes)"
+
+        if self.looks_like_duration(normalized) and state.get("studyMode") and not pending_action:
+            timer_text = remaining or "the selected duration"
+            return True, f"Study mode activated. Timer {timer_text} ke liye start ho gaya."
+
+        if ("study mode off" in normalized or normalized == "unlock") and pending_action == "await_passcode":
+            return True, state.get("pendingPrompt") or "Enter passcode to unlock"
+
+        if self.looks_like_passcode(normalized) and not state.get("studyMode") and not pending_action:
+            return True, "Study mode disabled. Full access restored."
+
+        return None

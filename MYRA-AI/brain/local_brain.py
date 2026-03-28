@@ -30,7 +30,7 @@ class LocalBrain:
         if normalized in {"how are you", "how are you myra"}:
             return "Haan mast hu Boss... tu bata, aaj coding mode me hai ya chill mode?"
         if normalized in {"what are you doing", "what are you doing myra"}:
-            return "Hmm bas yahin hu Boss... tera scene dekh raha hu."
+            return "Bas yahin hu Boss... tera scene dekh raha hu."
 
         if any(token in normalized for token in ["tired", "sleepy", "exhausted", "drained"]):
             return "Arey Boss, tu kaafi tired lag raha hai... chhota break maar le, fir dekhte hain."
@@ -47,7 +47,7 @@ class LocalBrain:
             return "Tu mere liye hamesha Boss hi hai."
         if normalized in {"what am i studying", "what is my course"}:
             semester_text = f" in {semester} semester" if semester else ""
-            return f"Hmm Boss, tu {course}{semester_text} kar raha hai."
+            return f"Boss, tu {course}{semester_text} kar raha hai."
         if normalized in {"what is my field", "my field"}:
             return f"Boss, tera field {field} hai... yaad hai mujhe."
         if normalized in {"what is my current project", "my current project"}:
@@ -66,15 +66,15 @@ class LocalBrain:
 
         if re.search(r"\bpython\b", normalized) and re.search(r"\bwhat|explain|define|kya\b", normalized):
             return (
-                "Hmm Boss, Python ek easy aur kaafi useful language hai... "
-                "automation, web, AI, scripting sab me kaam aati hai."
+                "Boss, Python ek easy aur useful language hai. "
+                "Automation, web, AI, aur scripting sab me kaam aati hai."
             )
 
         if normalized.startswith(("what is ", "who is ", "how ", "why ", "explain ", "define ")):
             return (
-                "Haan Boss, ruk simple me samjhata hu... bas topic thoda specific bol de."
+                "Boss, topic thoda specific bol do. Main simple me samjha dungi."
             )
 
         return (
-            "Hmm Boss, scene samajh aa raha hai... bas thoda aur seedha bol, fir sahi se batata hu."
+            "Boss, thoda clearly bol do. Main sahi se help karti hoon."
         )

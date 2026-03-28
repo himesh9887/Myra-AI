@@ -83,7 +83,7 @@ class HumanSpeechFormatter:
                 "Haan Boss, mic sunna abhi off hai.",
             ],
             "error": [
-                "Hmm Boss, ye abhi sahi se nahi hua.",
+                "Boss, ye abhi sahi se nahi hua.",
                 "Arey Boss, ek baar fir try karte hain.",
                 "Boss, isme thoda issue aa gaya.",
             ],
@@ -100,7 +100,7 @@ class HumanSpeechFormatter:
             "supportive": ["Arey Boss, ", "Haan Boss, ", "Sun na Boss, "],
             "cheerful": ["Arey Boss, ", "Wah Boss, ", "Nice Boss, "],
             "excited": ["Wah Boss, ", "Arey Boss, ", "Acha Boss, "],
-            "error": ["Hmm Boss, ", "Arey Boss, ", "Haan Boss, "],
+            "error": ["Boss, ", "Arey Boss, ", "Haan Boss, "],
         }
 
     def prepare(self, text):

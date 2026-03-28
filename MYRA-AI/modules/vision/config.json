@@ -1,23 +1,44 @@
 {
   "userName": "Himesh",
   "cameraIndex": 0,
-  "frameIntervalMs": 350,
-  "faceMissingSeconds": 6,
+  "cameraWarmupSeconds": 0.5,
+  "frameIntervalMs": 500,
+  "faceMissingSeconds": 3,
+  "faceAdjustSeconds": 2.5,
+  "faceRecoverySeconds": 1.2,
+  "faceDetectionConfidence": 0.7,
   "focusLossSeconds": 10,
   "noiseThreshold": 0.055,
   "noiseHoldSeconds": 3,
   "voiceAlertsEnabled": true,
   "voiceCooldownSeconds": 8,
+  "faceWarningRepeatSeconds": 3,
+  "focusWarningRepeatSeconds": 8,
+  "noiseWarningRepeatSeconds": 8,
   "sampleRate": 16000,
   "blockSize": 1024,
   "maxNoiseLevel": 0.2,
   "focusCenterMin": 0.22,
   "focusCenterMax": 0.78,
+  "minFaceAreaRatio": 0.035,
+  "faceCenterTolerance": 0.24,
+  "faceEdgeMarginRatio": 0.04,
+  "voiceRate": 170,
+  "voiceVolume": 1.0,
   "alertMessages": {
-    "generalFocus": "Himesh, focus bro.",
-    "faceMissing": "Face not detected, please come back.",
-    "focusLost": "You are distracted.",
+    "generalFocus": [
+      "Himesh, focus karo.",
+      "Boss, focus back on the screen.",
+      "Himesh, dhyan screen par rakho."
+    ],
+    "faceMissing": [
+      "Face detect nahi ho raha, screen ke saamne aao.",
+      "Screen ke saamne aao.",
+      "Himesh, face camera ke saamne rakho."
+    ],
+    "faceAdjust": "Face clear nahi dikh raha.",
+    "focusLost": "You are distracted, focus back.",
     "noiseDetected": "Background noise detected, stay focused.",
-    "noiseHigh": "Too much disturbance around you."
+    "noiseHigh": "Environment noisy hai, stay focused."
   }
 }

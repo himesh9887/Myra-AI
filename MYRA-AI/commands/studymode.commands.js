@@ -45,6 +45,16 @@ function executeStudyModeCommand(command, context = {}) {
   const service = getService(context);
   const status = service.getStatus();
 
+  if (/^force\s+stop\s+study\s+mode$/i.test(raw)) {
+    const result = service.forceStopStudyMode();
+    return {
+      handled: true,
+      requiresPasscode: false,
+      message: result.message,
+      data: result,
+    };
+  }
+
   if (status.studyUnlockPending && looksLikePasscode(raw)) {
     const result = service.stopStudyMode(raw, { manual: true });
     return {

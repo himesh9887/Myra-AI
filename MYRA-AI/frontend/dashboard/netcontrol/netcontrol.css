@@ -613,6 +613,16 @@ button:disabled,
   margin-top: 14px;
 }
 
+.vision-alert-blink {
+  color: #fb7185;
+  text-shadow: 0 0 18px rgba(251, 113, 133, 0.35);
+  animation: vision-alert-blink 0.9s ease-in-out infinite;
+}
+
+.vision-copy-alert {
+  color: #fecdd3;
+}
+
 .study-chip-live {
   border-color: rgba(34, 197, 94, 0.36);
   box-shadow: 0 0 24px rgba(34, 197, 94, 0.14);
@@ -683,6 +693,16 @@ button:disabled,
   );
   background-size: 220% 100%;
   animation: shimmer 1.7s linear infinite;
+}
+
+@keyframes vision-alert-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .toast-stack {

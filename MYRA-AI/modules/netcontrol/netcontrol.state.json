@@ -17,10 +17,10 @@
   "passcode": "1234",
   "focusMode": {
     "active": false,
-    "start": null,
-    "end": null,
-    "startLabel": "",
-    "endLabel": "",
+    "start": "2026-03-27T16:04:44.664Z",
+    "end": "2026-03-27T16:28:00.000Z",
+    "startLabel": "09:34 pm",
+    "endLabel": "09:58 pm",
     "remainingSeconds": 0,
     "countdownLabel": "00:00",
     "suggestion": "Best time to focus detected: 08:00 PM - 10:00 PM",
@@ -30,8 +30,11 @@
       "facebook.com",
       "x.com"
     ],
-    "lastStartedAt": null
+    "lastStartedAt": "2026-03-27T16:04:44.669Z"
   },
-  "logs": [],
-  "lastUpdated": null
+  "logs": [
+    "[21:34] Focus mode started",
+    "[22:03] Focus mode completed"
+  ],
+  "lastUpdated": "2026-03-27T16:33:01.394Z"
 }

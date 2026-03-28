@@ -1,5 +1,8 @@
 const fs = require("fs");
+const http = require("http");
+const https = require("https");
 const path = require("path");
+const { spawn } = require("child_process");
 
 const {
   MANUAL_EXIT_SHELLS,
@@ -24,6 +27,19 @@ const CORE_PROTECTED_PROCESSES = Array.from(new Set([
   ...Array.from(MANUAL_EXIT_SHELLS),
 ]));
 const CORE_ALLOWED_SITES = expandAllowedSites(["chat.openai.com", "localhost"]);
+const MYRA_DASHBOARD_URL = String(process.env.MYRA_APP_URL || "http://localhost:3000").trim().replace(/\/+$/, "");
+const NETCONTROL_DASHBOARD_URL = String(
+  process.env.MYRA_APP_NETCONTROL_URL || `${MYRA_DASHBOARD_URL}/netcontrol`
+).trim();
+const NETCONTROL_DASHBOARD_FALLBACK_URL = `http://${process.env.MYRA_NETCONTROL_HOST || "127.0.0.1"}:${process.env.MYRA_NETCONTROL_PORT || "5127"}/dashboard/netcontrol`;
+const STUDY_CHATGPT_URL = "https://chat.openai.com";
+const WORKSPACE_OPEN_DELAY_MS = 1000;
+const WORKSPACE_RETRY_DELAY_MS = 2000;
+const VSCODE_LAUNCH_PATHS = [
+  path.join(process.env.LocalAppData || "", "Programs", "Microsoft VS Code", "Code.exe"),
+  path.join(process.env.ProgramFiles || "C:\\Program Files", "Microsoft VS Code", "Code.exe"),
+  path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Microsoft VS Code", "Code.exe"),
+].filter(Boolean);
 const DEFAULT_VISION_MONITOR = mergeVisionRuntimeState({
   active: false,
   manualDisabled: false,
@@ -282,8 +298,10 @@ class StudyModeService {
     options = {}
   ) {
     this.statePath = statePath;
+    this.workspaceRoot = path.resolve(options.workspaceRoot || path.join(__dirname, "..", ".."));
     this._blockLogCooldowns = new Map();
     this._expectedVisionStop = false;
+    this._workspaceLaunchTimers = new Set();
 
     this.processMonitor = options.processMonitor || new ProcessMonitor({
       onBlocked: (payload) => this._handleBlockedProcess(payload),
@@ -376,7 +394,7 @@ class StudyModeService {
 
     if (!durationMinutes) {
       state.pendingAction = "await_duration";
-      state.pendingPrompt = "Enter a valid duration like 2 hours or 30 minutes";
+      state.pendingPrompt = "Please enter valid duration (e.g., 10 minutes or 2 hours)";
       this._saveState(state);
       return {
         ...this._buildPayload(state),
@@ -410,6 +428,7 @@ class StudyModeService {
     const endTime = new Date(Date.now() + durationMinutes * 60 * 1000);
     const monitorAllowedApps = this._resolveMonitorAllowedApps(state, protection);
     const protectedProcesses = this._resolveProtectedProcesses(state, protection);
+    const browserRefresh = this._refreshManagedBrowsers();
 
     this.processMonitor.start({
       allowedApps: monitorAllowedApps,
@@ -417,6 +436,7 @@ class StudyModeService {
       browserProcesses: protection.supportedBrowserProcesses,
     });
     this.timerManager.start(endTime.toISOString());
+    const workspaceLaunch = this._launchStudyWorkspace();
 
     let nextState = {
       ...state,
@@ -439,6 +459,18 @@ class StudyModeService {
       nextState,
       `Browser allowlist active: ${this._formatPolicyTargets(protection)} -> ChatGPT and localhost only`
     );
+    if (browserRefresh.restarted.length) {
+      nextState = appendLog(
+        nextState,
+        `${browserRefresh.restarted.join(", ")} restarted to apply study mode browser rules`
+      );
+    }
+    if (browserRefresh.errors.length) {
+      nextState = appendLog(nextState, `Browser refresh warning: ${browserRefresh.errors.join(" | ")}`);
+    }
+    if (workspaceLaunch.queued.length) {
+      nextState = appendLog(nextState, `Study workspace launch queued: ${workspaceLaunch.queued.join(", ")}`);
+    }
     nextState = appendLog(nextState, "MYRA dashboard and study mode off remain available");
     this._saveState(nextState);
 
@@ -458,7 +490,7 @@ class StudyModeService {
       ...this._buildPayload(this._loadState()),
       handled: true,
       requiresDuration: false,
-      message: `Study mode activated for ${formatDurationLabel(durationMinutes)}. Only MYRA Dashboard, ChatGPT, and VS Code are accessible.`,
+      message: `Study mode activated for ${formatDurationLabel(durationMinutes)}. Only MYRA, ChatGPT, and VS Code are accessible. Stay focused.`,
     };
   }
 
@@ -478,7 +510,7 @@ class StudyModeService {
     }
 
     state.pendingAction = "await_passcode";
-    state.pendingPrompt = "Enter passcode to unlock";
+    state.pendingPrompt = "Enter passcode";
     this._saveState(state);
     return {
       ...this._buildPayload(state),
@@ -487,6 +519,13 @@ class StudyModeService {
       authorized: false,
       message: state.pendingPrompt,
     };
+  }
+
+  forceStopStudyMode() {
+    return this.stopStudyMode("", {
+      manual: false,
+      reason: "force_stop",
+    });
   }
 
   stopStudyMode(passcode = "", options = {}) {
@@ -518,7 +557,7 @@ class StudyModeService {
           {
             ...state,
             pendingAction: "await_passcode",
-            pendingPrompt: "Enter passcode to unlock",
+            pendingPrompt: "Enter passcode",
           },
           "Unauthorized attempt blocked"
         );
@@ -528,11 +567,12 @@ class StudyModeService {
           handled: true,
           requiresPasscode: true,
           authorized: false,
-          message: "Access denied. Study mode remains locked.",
+          message: "Incorrect passcode. Study mode remains locked.",
         };
       }
     }
 
+    this._clearWorkspaceLaunchTimers();
     this.timerManager.stop();
     this.processMonitor.stop();
     const visionStopResult = this.stopVisionMonitoring({
@@ -542,6 +582,7 @@ class StudyModeService {
       preserveManualDisabled: false,
     });
     const protection = this.siteBlocker.stop();
+    const browserRefresh = this._refreshManagedBrowsers();
 
     let stoppedState = {
       ...this._loadState(),
@@ -562,8 +603,21 @@ class StudyModeService {
 
     stoppedState = appendLog(
       stoppedState,
-      reason === "timer_expired" ? "Study mode auto disabled" : "Study mode disabled"
+      reason === "timer_expired"
+        ? "Study session completed"
+        : reason === "force_stop"
+          ? "Study mode stopped by emergency override"
+          : "Study mode stopped"
     );
+    if (browserRefresh.restarted.length) {
+      stoppedState = appendLog(
+        stoppedState,
+        `${browserRefresh.restarted.join(", ")} restarted after study mode unlock`
+      );
+    }
+    if (browserRefresh.errors.length) {
+      stoppedState = appendLog(stoppedState, `Browser refresh warning: ${browserRefresh.errors.join(" | ")}`);
+    }
     if (protection.lastError) {
       stoppedState = appendLog(stoppedState, `Restore warning: ${protection.lastError}`);
     }
@@ -575,7 +629,9 @@ class StudyModeService {
       requiresPasscode: false,
       authorized: true,
       message: reason === "timer_expired"
-        ? "Study mode timer completed. Full access restored."
+        ? "Study session completed. Good job Boss. Full access restored."
+        : reason === "force_stop"
+          ? "Study mode disabled."
         : "Study mode disabled. Full access restored.",
     };
   }
@@ -756,13 +812,28 @@ class StudyModeService {
 
     const protectedProcesses = this._resolveProtectedProcesses(state, protection);
     const monitorAllowedApps = this._resolveMonitorAllowedApps(state, protection);
+    const browserRefresh = this._refreshManagedBrowsers();
+    const workspaceLaunch = this._launchStudyWorkspace();
     const resumedState = {
       ...state,
       remainingSeconds,
       protectedProcesses,
       browserProtection: protection,
     };
-    this._saveState(resumedState);
+    let nextState = resumedState;
+    if (browserRefresh.restarted.length) {
+      nextState = appendLog(
+        nextState,
+        `${browserRefresh.restarted.join(", ")} restarted while restoring study mode browser rules`
+      );
+    }
+    if (browserRefresh.errors.length) {
+      nextState = appendLog(nextState, `Browser refresh warning: ${browserRefresh.errors.join(" | ")}`);
+    }
+    if (workspaceLaunch.queued.length) {
+      nextState = appendLog(nextState, `Study workspace restore queued: ${workspaceLaunch.queued.join(", ")}`);
+    }
+    this._saveState(nextState);
 
     this.processMonitor.start({
       allowedApps: monitorAllowedApps,
@@ -906,6 +977,223 @@ class StudyModeService {
     return targets.length ? targets.join(", ") : "Browser policy";
   }
 
+  _refreshManagedBrowsers() {
+    if (!this.siteBlocker || typeof this.siteBlocker.refreshBrowsers !== "function") {
+      return {
+        restarted: [],
+        errors: [],
+      };
+    }
+    const result = this.siteBlocker.refreshBrowsers({ restoreLastSession: true });
+    return {
+      restarted: Array.isArray(result && result.restarted) ? result.restarted : [],
+      errors: Array.isArray(result && result.errors) ? result.errors : [],
+    };
+  }
+
+  _launchStudyWorkspace() {
+    this._clearWorkspaceLaunchTimers();
+
+    const steps = [
+      {
+        name: "MYRA Dashboard",
+        type: "browser",
+        url: MYRA_DASHBOARD_URL,
+        checkReady: true,
+        maxAttempts: 3,
+      },
+      {
+        name: "NetControl Dashboard",
+        type: "browser",
+        url: NETCONTROL_DASHBOARD_URL,
+        retryUrl: NETCONTROL_DASHBOARD_FALLBACK_URL !== NETCONTROL_DASHBOARD_URL ? NETCONTROL_DASHBOARD_FALLBACK_URL : "",
+        checkReady: true,
+        maxAttempts: 3,
+      },
+      {
+        name: "ChatGPT",
+        type: "browser",
+        url: STUDY_CHATGPT_URL,
+        checkReady: false,
+        maxAttempts: 2,
+      },
+      {
+        name: "VS Code",
+        type: "vscode",
+        maxAttempts: 1,
+      },
+    ];
+
+    steps.forEach((step, index) => {
+      this._scheduleWorkspaceLaunch(step, index * WORKSPACE_OPEN_DELAY_MS, 0);
+    });
+
+    return {
+      queued: steps.map((step) => step.name),
+      errors: [],
+    };
+  }
+
+  _scheduleWorkspaceLaunch(step, delayMs = 0, attemptNumber = 0) {
+    const timer = setTimeout(() => {
+      this._workspaceLaunchTimers.delete(timer);
+      Promise.resolve(this._runWorkspaceLaunch(step, attemptNumber)).catch((error) => {
+        this.addLog(`${step.name} launch error: ${error && error.message ? error.message : "unknown error"}`);
+      });
+    }, Math.max(0, Number(delayMs) || 0));
+    this._workspaceLaunchTimers.add(timer);
+  }
+
+  _clearWorkspaceLaunchTimers() {
+    for (const timer of this._workspaceLaunchTimers) {
+      clearTimeout(timer);
+    }
+    this._workspaceLaunchTimers.clear();
+  }
+
+  async _runWorkspaceLaunch(step, attemptNumber = 0) {
+    const currentStep = step && typeof step === "object" ? step : {};
+    const name = String(currentStep.name || "workspace item").trim();
+    const isRetry = attemptNumber > 0;
+    const maxAttempts = Math.max(1, Number(currentStep.maxAttempts) || 1);
+    const targetUrl = isRetry && currentStep.retryUrl ? currentStep.retryUrl : currentStep.url;
+
+    this.addLog(`${isRetry ? "Retrying" : "Opening"} ${name}...`);
+
+    let readiness = { ok: true };
+    if (currentStep.type === "browser" && currentStep.checkReady && targetUrl) {
+      readiness = await this._checkLocalUrlReady(targetUrl);
+      if (!readiness.ok) {
+        const detail = readiness.status
+          ? `HTTP ${readiness.status}`
+          : (readiness.error || "server not ready");
+        this.addLog(`${name} not ready yet (${detail})`);
+      }
+    }
+
+    const result = currentStep.type === "vscode"
+      ? this._openVsCode()
+      : this._openUrl(targetUrl);
+
+    if (!result.ok) {
+      this.addLog(`${name} launch failed: ${result.error || "launch failed"}`);
+      if ((attemptNumber + 1) < maxAttempts) {
+        this.addLog(`${name} retry scheduled in 2 seconds.`);
+        this._scheduleWorkspaceLaunch(currentStep, WORKSPACE_RETRY_DELAY_MS, attemptNumber + 1);
+      }
+      return;
+    }
+
+    if (!readiness.ok && currentStep.checkReady && (attemptNumber + 1) < maxAttempts) {
+      this.addLog(`${name} retry scheduled in 2 seconds.`);
+      this._scheduleWorkspaceLaunch(currentStep, WORKSPACE_RETRY_DELAY_MS, attemptNumber + 1);
+      return;
+    }
+
+    this.addLog(`${name} launch command sent.`);
+  }
+
+  _checkLocalUrlReady(url) {
+    let parsed;
+    try {
+      parsed = new URL(String(url || "").trim());
+    } catch (error) {
+      return Promise.resolve({ ok: false, error: "invalid URL" });
+    }
+
+    const hostname = String(parsed.hostname || "").trim().toLowerCase();
+    if (!["localhost", "127.0.0.1", "::1"].includes(hostname)) {
+      return Promise.resolve({ ok: true, skipped: true });
+    }
+
+    const client = parsed.protocol === "https:" ? https : http;
+
+    return new Promise((resolve) => {
+      const request = client.request(parsed, { method: "GET", timeout: 1200 }, (response) => {
+        const status = Number(response.statusCode) || 0;
+        response.resume();
+        resolve({
+          ok: status >= 200 && status < 400,
+          status,
+        });
+      });
+
+      request.on("timeout", () => {
+        request.destroy(new Error("timeout"));
+      });
+      request.on("error", (error) => {
+        resolve({
+          ok: false,
+          error: error && error.message ? error.message : "connection failed",
+        });
+      });
+      request.end();
+    });
+  }
+
+  _openUrl(url) {
+    if (process.platform === "win32") {
+      return this._spawnDetached("cmd", ["/c", "start", "", String(url || "").trim()]);
+    }
+    return this._spawnDetached("xdg-open", [String(url || "").trim()]);
+  }
+
+  _openVsCode() {
+    const workspaceTarget = this.workspaceRoot;
+
+    let lastError = "VS Code executable not found";
+    for (const executable of VSCODE_LAUNCH_PATHS) {
+      const candidate = String(executable || "").trim();
+      if (!candidate) {
+        continue;
+      }
+      if ((candidate.includes("\\") || candidate.includes("/")) && !fs.existsSync(candidate)) {
+        continue;
+      }
+      const result = this._spawnDetached(candidate, [workspaceTarget]);
+      if (result.ok) {
+        return result;
+      }
+      lastError = result.error || lastError;
+    }
+
+    if (process.platform === "win32") {
+      const shellLaunch = this._spawnDetached("cmd", ["/c", "start", "", "code", workspaceTarget]);
+      if (shellLaunch.ok) {
+        return shellLaunch;
+      }
+      lastError = shellLaunch.error || lastError;
+    } else {
+      const cliLaunch = this._spawnDetached("code", [workspaceTarget]);
+      if (cliLaunch.ok) {
+        return cliLaunch;
+      }
+      lastError = cliLaunch.error || lastError;
+    }
+
+    return {
+      ok: false,
+      error: lastError,
+    };
+  }
+
+  _spawnDetached(command, args = []) {
+    try {
+      const child = spawn(command, args, {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      child.unref();
+      return { ok: true, error: "" };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error && error.message ? error.message : "launch failed",
+      };
+    }
+  }
+
   _buildPayload(state) {
     const liveState = mergeState(state);
     const remainingSeconds = liveState.studyMode && liveState.endTime
@@ -937,7 +1225,7 @@ class StudyModeService {
         protectedProcesses: liveState.protectedProcesses,
         allowedSites: liveState.allowedSites,
         allowedResources: [
-          "MYRA Dashboard",
+          "MYRA",
           "ChatGPT",
           "VS Code",
         ],

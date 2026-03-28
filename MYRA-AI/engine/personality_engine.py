@@ -258,7 +258,7 @@ class PersonalityEngine:
         if project_match:
             project = project_match.group(1).strip().strip(".")
             if self.memory.add_project(project):
-                return f"Hmm Boss, {project} wala project dimag me lock ho gaya."
+                return f"Boss, {project} wala project dimag me lock ho gaya."
             return ""
 
         app_match = re.search(r"^(?:myra\s+)?remember that i use\s+(.+)$", raw, re.IGNORECASE)

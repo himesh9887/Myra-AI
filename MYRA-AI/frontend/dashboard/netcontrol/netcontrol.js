@@ -266,8 +266,8 @@ function renderStudyMode(status) {
 
   elements.studyModeCopy.textContent = active
     ? unlockPending
-      ? "Passcode challenge active. MYRA Dashboard, ChatGPT, and VS Code remain allowed."
-      : "Only MYRA Dashboard, ChatGPT, and VS Code are accessible. Everything else stays blocked until the timer ends or passcode unlock succeeds."
+      ? "Passcode challenge active. MYRA, ChatGPT, and VS Code remain allowed."
+      : "Only MYRA, ChatGPT, and VS Code are accessible. Everything else stays blocked until the timer ends or passcode unlock succeeds."
     : durationPending
       ? "Duration capture armed. Submit time to lock the system."
       : "Study lock is disengaged.";
@@ -277,7 +277,7 @@ function renderStudyMode(status) {
 
   const allowItems = Array.isArray(studyLock.allowedResources) && studyLock.allowedResources.length
     ? studyLock.allowedResources.map((item) => item.includes("&#x") ? item : `${item} &#x2705;`)
-    : ["MYRA Dashboard &#x2705;", "ChatGPT &#x2705;", "VS Code &#x2705;"];
+    : ["MYRA &#x2705;", "ChatGPT &#x2705;", "VS Code &#x2705;"];
   const blockedItems = Array.isArray(studyLock.blockedResources) && studyLock.blockedResources.length
     ? studyLock.blockedResources.map((item) => item.includes("&#x") ? item : `${item} &#x274C;`)
     : ["Everything else &#x274C;"];
@@ -299,9 +299,11 @@ function renderVisionMonitor(status) {
   const studyActive = Boolean(studyLock.active);
   const monitorActive = Boolean(vision.active);
   const faceStatus = String(vision.faceStatus || "unavailable");
+  const faceGuidance = String(vision.faceGuidance || "").trim();
   const focusStatus = String(vision.focusStatus || "unavailable");
   const noiseStatus = String(vision.noiseStatus || "unavailable");
   const warning = String(vision.warning || "none");
+  const faceWarningActive = faceStatus === "missing" || warning === "Face not detected";
   const dependencies = vision.dependencies || {};
   const supports = vision.supports || {};
   const noisePercent = Math.max(0, Math.min(100, Number(vision.noisePercent || 0)));
@@ -331,6 +333,37 @@ function renderVisionMonitor(status) {
     : faceStatus === "missing"
       ? `Face missing for ${Number(vision.faceMissingSeconds || 0).toFixed(1)}s.`
       : "Face detection waits for webcam access and OpenCV.";
+  if (faceStatus === "detected") {
+    elements.visionFaceValue.textContent = "Detected";
+    elements.visionFaceCopy.textContent = "Face is clearly visible in front of the monitor.";
+  } else if (faceStatus === "adjust") {
+    elements.visionFaceValue.textContent = "Adjust Camera";
+    elements.visionFaceCopy.textContent = faceGuidance
+      ? `Face found, but not clear enough. Please ${faceGuidance}.`
+      : "Face found, but not clear enough yet.";
+  } else if (faceStatus === "missing") {
+    elements.visionFaceValue.textContent = "Not Detected";
+  }
+  if (faceStatus === "detected") {
+    elements.visionFaceValue.textContent = "Detected";
+    elements.visionFaceCopy.textContent = "Face detection is working and your face is visible.";
+  } else if (faceStatus === "missing") {
+    elements.visionFaceValue.textContent = "Not Detected";
+    elements.visionFaceCopy.textContent = `No face detected for ${Number(vision.faceMissingSeconds || 0).toFixed(1)}s.`;
+  } else if (faceStatus === "adjust") {
+    elements.visionFaceValue.textContent = "Detecting...";
+    elements.visionFaceCopy.textContent = faceGuidance
+      ? `Face found, but not clear yet. Please ${faceGuidance}.`
+      : "Face found, but not clear yet.";
+  } else if (faceStatus === "detecting") {
+    elements.visionFaceValue.textContent = "Detecting...";
+    elements.visionFaceCopy.textContent = "Camera is checking for your face.";
+  } else {
+    elements.visionFaceValue.textContent = monitorActive ? "Detecting..." : "Unavailable";
+    elements.visionFaceCopy.textContent = "Face detection waits for camera and MediaPipe access.";
+  }
+  elements.visionFaceValue.classList.toggle("vision-alert-blink", faceWarningActive);
+  elements.visionFaceCopy.classList.toggle("vision-copy-alert", faceWarningActive);
 
   elements.visionFocusValue.textContent = focusStatus === "focused"
     ? "Focused ✅"

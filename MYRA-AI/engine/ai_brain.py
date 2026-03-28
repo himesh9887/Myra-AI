@@ -78,14 +78,14 @@ def _fallback_response(prompt, profile=None):
 
     if re.search(r"\bai\b", compact) and re.search(r"\b(kya|what|explain|define|full)\b", compact):
         return (
-            "Hmm Boss, AI simple me wo cheez hai jo machine ko thoda smart bana de... "
-            "samjha? matlab decision, prediction, automation wala scene."
+            "Boss, AI simple me machine ko smart banata hai. "
+            "Ye patterns samajh kar decision, prediction, aur automation me help karta hai."
         )
 
     if re.search(r"\bpython\b", compact) and re.search(r"\b(kya|what|explain|define)\b", compact):
         return (
-            "Arey Boss, Python kaafi mast language hai... beginner friendly bhi, "
-            "aur automation se leke AI tak sab me kaam aa jati hai."
+            "Boss, Python easy aur useful language hai. "
+            "Automation, web, AI, aur scripting sab me kaam aati hai."
         )
 
     if any(token in compact for token in ["tired", "sleepy", "exhausted"]):
@@ -109,12 +109,12 @@ def _fallback_response(prompt, profile=None):
             details.append(f"tu {project} build kar raha hai")
         if interests:
             details.append(f"aur tujhe {interests} pasand hai")
-        return f"Hmm Boss, mujhe yaad hai ki {', '.join(details)}."
+        return f"Boss, mujhe yaad hai ki {', '.join(details)}."
 
     if normalized.startswith(("what is ", "who is ", "how ", "why ", "explain ", "define ")):
-        return "Boss net wala brain thoda nakhre kar raha hai... ruk, topic thoda specific bol, simple me samjhata hu."
+        return "Boss, topic thoda specific bol do. Main simple me samjha dungi."
 
-    return "Hmm Boss, samajh aa raha hai... bas thoda aur seedha bol de, fir sahi se batata hu."
+    return "Boss, thoda clearly bol do. Main sahi se help karti hoon."
 
 
 def is_failsafe_response(text):

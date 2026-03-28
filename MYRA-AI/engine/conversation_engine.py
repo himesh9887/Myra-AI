@@ -16,9 +16,9 @@ class ConversationEngine:
         self.emotion_reply_engine = emotion_reply_engine or EmotionReplyEngine()
         self._last_response_by_group = {}
         self._fallbacks = [
-            "Arey Boss, kya scene?",
-            "Haan Boss... bol kya karna hai.",
-            "Boss bata na, aaj kya sort karna hai?",
+            "Boss, bolo kya help chahiye.",
+            "Boss, direct bol do kya karna hai.",
+            "Boss, plan batao, main handle karti hoon.",
         ]
         self._jokes = [
             "Boss, debugging ka matlab... dard bhi apna, bug bhi apna, aur jeet bhi apni.",
@@ -32,28 +32,7 @@ class ConversationEngine:
         ]
 
     def startup_message(self, context: dict | None = None) -> str:
-        context = context or {}
-        greeting = self._startup_greeting()
-        exam_prompt = self._exam_event_prompt(context)
-        contextual_prompt = self._context_follow_up(context)
-
-        if exam_prompt:
-            return f"{greeting}... {exam_prompt}"
-
-        if contextual_prompt:
-            return f"{greeting}... {contextual_prompt}"
-
-        if "morning" in greeting.lower():
-            schedule_text = self._schedule_preview(context)
-            if schedule_text:
-                return f"{greeting}... aaj ka scene ye hai: {schedule_text}"
-            return f"{greeting}... uth gaya kya?"
-
-        if "afternoon" in greeting.lower():
-            exam_nudge = self._exam_nudge(context)
-            return f"{greeting}... {exam_nudge}" if exam_nudge else f"{greeting}... aaj ka scene kya hai?"
-
-        return f"{greeting}... aaj productive day tha ya chill?"
+        return f"{self._startup_greeting()}. Boss, aaj ka plan kya hai?"
 
     def friendly_reply(self, text: str, context: dict | None = None) -> str:
         normalized = self._normalize(text)
@@ -129,7 +108,7 @@ class ConversationEngine:
                 "smalltalk_what_are_you_doing",
                 [
                     "Bas tera flow dekh rahi hu Boss... ready baithi hu.",
-                    "Hmm system, schedule aur mood pe nazar hai Boss... kuch chahiye to bol.",
+                    "System, schedule aur mood pe nazar hai Boss... kuch chahiye to bol.",
                     "Main standby me hu Boss, bol kya chahiye.",
                 ],
             )
@@ -311,10 +290,10 @@ class ConversationEngine:
     def _startup_greeting(self) -> str:
         hour = datetime.now().hour
         if hour < 12:
-            return "Good Morning Boss"
+            return "Good morning Boss"
         if hour < 18:
-            return "Good Afternoon Boss"
-        return "Good Evening Boss"
+            return "Good afternoon Boss"
+        return "Good evening Boss"
 
     def _exam_event_prompt(self, context: dict | None = None) -> str:
         context = context or {}
@@ -354,7 +333,7 @@ class ConversationEngine:
         subject = self._subject(context)
         if "exam" in topic or "revision" in topic:
             if subject:
-                return f"Hmm Boss, {subject} revision start kiya kya?"
+                return f"Boss, {subject} revision start kiya kya?"
             return "Boss, exam ka scene kaisa chal raha?"
         if "coding" in topic or "project" in topic:
             return "Acha Boss, coding practice kaisi chal rahi?"

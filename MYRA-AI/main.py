@@ -361,6 +361,11 @@ class AssistantController(QObject):
         return True
 
     def _route_command(self, command, raw):
+        if hasattr(self, "netcontrol") and self.netcontrol.should_claim_input(raw):
+            handled, message = self.netcontrol.handle_command(raw)
+            if handled or message:
+                return message or "Boss, NetControl command handle nahi ho pa raha."
+
         panel_result = self._handle_dashboard_panel_command(command)
         if panel_result:
             return panel_result
@@ -814,6 +819,12 @@ class AssistantController(QObject):
         tokens = command.split()
         if not tokens:
             return True
+        if re.fullmatch(r"\d{1,8}", command):
+            return False
+        if re.fullmatch(r"\d+(?:\.\d+)?\s*(?:hours?|hrs?|hr|h|minutes?|mins?|min|m)", command):
+            return False
+        if hasattr(self, "netcontrol") and self.netcontrol.should_claim_input(command):
+            return False
         if len(tokens) == 1 and tokens[0] in fillers:
             return True
         if len(tokens) == 1 and tokens[0] not in {"stop", "mute", "shutdown", "restart", "sleep"}:

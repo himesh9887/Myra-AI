@@ -1,3 +1,5 @@
+import re
+
 import speech_recognition as sr
 
 
@@ -153,6 +155,10 @@ class VoiceListener:
         }
         if normalized in noise_patterns:
             return True
+        if re.fullmatch(r"\d{1,8}", normalized):
+            return False
+        if re.fullmatch(r"\d+(?:\.\d+)?\s*(?:hours?|hrs?|hr|h|minutes?|mins?|min|m)", normalized):
+            return False
         if len(normalized.split()) == 1 and normalized not in {"stop", "resume", "mute", "listen"}:
             return True
         return False

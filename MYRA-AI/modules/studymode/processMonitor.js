@@ -193,7 +193,7 @@ class ProcessMonitor {
     this._killCooldowns.clear();
 
     this._poll();
-    this._interval = setInterval(() => this._poll(), 2500);
+    this._interval = setInterval(() => this._poll(), 2000);
   }
 
   stop() {
