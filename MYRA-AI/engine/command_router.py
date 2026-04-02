@@ -102,6 +102,10 @@ class CommandRouter:
         if not normalized:
             return RoutedCommand(SMALL_TALK, normalized, raw)
 
+        if self.whatsapp is not None and hasattr(self.whatsapp, "can_claim_followup"):
+            if self.whatsapp.can_claim_followup(normalized):
+                return RoutedCommand(WHATSAPP_MESSAGE, normalized, raw, raw)
+
         if self.conversation.is_greeting(normalized):
             return RoutedCommand(GREETING, normalized, raw)
         if self._looks_like_help(normalized):
@@ -518,7 +522,10 @@ class CommandRouter:
         return len(normalized.split()) > 4 and normalized.endswith("?")
 
     def _looks_like_whatsapp(self, normalized):
-        return self._contains_any(
+        if self.whatsapp is not None and hasattr(self.whatsapp, "can_claim_followup"):
+            if self.whatsapp.can_claim_followup(normalized):
+                return True
+        if self._contains_any(
             normalized,
             [
                 "whatsapp",
@@ -532,7 +539,17 @@ class CommandRouter:
                 "send voice note to",
                 "send document to",
             ],
+        ):
+            return True
+        whatsapp_patterns = (
+            r"^.+?\sko\s+block(?:\s+kar|\s+kar do|\s+karna|\s+do)?$",
+            r"^.+?\sko\s+unblock(?:\s+kar|\s+kar do|\s+karna|\s+do)?$",
+            r"^block\s+.+$",
+            r"^unblock\s+.+$",
+            r"^.+?\sko\s+(?:message|msg)\s+(?:bhej|send)(?:\s+do|\s+de|\s+kar do|\s+kar)?\s+.+$",
+            r"^(?:send|bhej)\s+(?:message|msg)\s+to\s+.+?\s+.+$",
         )
+        return any(re.match(pattern, normalized, flags=re.IGNORECASE) for pattern in whatsapp_patterns)
 
     def _looks_like_file_action(self, normalized):
         return self._contains_any(
@@ -744,7 +761,15 @@ class CommandRouter:
             self._context["last_app"] = str(subject).strip()
 
     def _contains_any(self, text, items):
-        return any(item in text for item in items)
+        normalized = str(text).lower()
+        for item in items:
+            token = str(item).strip().lower()
+            if not token:
+                continue
+            pattern = r"(?<!\w)" + re.escape(token).replace(r"\ ", r"\s+") + r"(?!\w)"
+            if re.search(pattern, normalized, flags=re.IGNORECASE):
+                return True
+        return False
 
 
 _DEFAULT_ROUTER = CommandRouter()

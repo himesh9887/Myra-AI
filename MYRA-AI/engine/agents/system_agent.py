@@ -61,7 +61,7 @@ class SystemAgent(BaseAgent):
             (["maximize window", "full screen"], self.system.maximize_current_window),
         ]
         for tokens, action in mapping:
-            if any(token in normalized for token in tokens):
+            if any(self._matches_token(normalized, token) for token in tokens):
                 return True, action()
         return False, ""
 
@@ -106,3 +106,8 @@ class SystemAgent(BaseAgent):
 
         handled, message = self.handle(payload)
         return message if handled else ""
+
+    def _matches_token(self, normalized: str, token: str) -> bool:
+        value = str(token).strip().lower()
+        pattern = r"(?<!\w)" + re.escape(value).replace(r"\ ", r"\s+") + r"(?!\w)"
+        return bool(re.search(pattern, str(normalized).lower(), flags=re.IGNORECASE))

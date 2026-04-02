@@ -47,6 +47,10 @@ except Exception:  # pragma: no cover
 
 from engine.voice_engine import VoiceEngine
 from engine.app_launcher import AppLauncher
+try:
+    from automation.whatsapp_controller import WhatsAppController
+except Exception:  # pragma: no cover
+    WhatsAppController = None
 
 try:
     from selenium import webdriver
@@ -78,12 +82,30 @@ class WhatsAppAgent:
         self.contacts = self._load_contacts()
         self._driver = None
         self._voice_renderer = None
+        self._advanced_controller = None
+        self._pending_contact_action = None
         self.apps = AppLauncher()
         self.desktop_app_id = os.getenv("MYRA_WHATSAPP_APP_ID", self.DEFAULT_WHATSAPP_APP_ID).strip()
 
     def handle(self, command):
         text = " ".join(str(command).strip().split())
         normalized = text.lower()
+
+        if self._pending_contact_action and self._is_confirmation_reply(normalized):
+            return True, self._handle_pending_contact_action(normalized)
+
+        block_target = self._extract_block_target(text)
+        if block_target:
+            return True, self.block_contact(block_target)
+
+        unblock_target = self._extract_unblock_target(text)
+        if unblock_target:
+            return True, self.unblock_contact(unblock_target)
+
+        if self._should_delegate_to_advanced_controller(normalized):
+            controller = self._advanced_controller_instance()
+            if controller is not None:
+                return True, controller.handle(text)
 
         contact_name, phone_number = self._extract_add_contact_payload(text)
         if contact_name and phone_number:
@@ -138,6 +160,89 @@ class WhatsAppAgent:
 
         return False, ""
 
+    def can_claim_followup(self, text):
+        if self._pending_contact_action is not None:
+            normalized = " ".join(str(text).strip().lower().split())
+            return normalized in {"haan", "han", "yes", "y", "confirm", "ok", "okay", "nahi", "nah", "no", "cancel", "stop"}
+        controller = self._advanced_controller_instance()
+        if controller is None or getattr(controller, "pending_confirmation", None) is None:
+            return False
+        normalized = " ".join(str(text).strip().lower().split())
+        return normalized in {"haan", "han", "yes", "y", "confirm", "ok", "okay", "nahi", "nah", "no", "cancel", "stop"}
+
+    def _should_delegate_to_advanced_controller(self, normalized):
+        text = " ".join(str(normalized).strip().lower().split())
+        if not text:
+            return False
+        controller = self._advanced_controller_instance()
+        if controller is not None and getattr(controller, "pending_confirmation", None) is not None and self.can_claim_followup(text):
+            return True
+
+        patterns = (
+            r"^.+?\sko\s+(?:message|msg)\s+(?:bhej|send)(?:\s+do|\s+de|\s+kar do|\s+kar)?\s+.+$",
+            r"^(?:send|bhej)\s+(?:message|msg)\s+to\s+.+?\s+.+$",
+        )
+        return any(re.match(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+    def _is_confirmation_reply(self, normalized):
+        return normalized in {"haan", "han", "yes", "y", "confirm", "ok", "okay", "nahi", "nah", "no", "cancel", "stop"}
+
+    def _handle_pending_contact_action(self, normalized):
+        pending = dict(self._pending_contact_action or {})
+        if not pending:
+            return "Boss, koi pending WhatsApp action nahi hai."
+        if normalized in {"nahi", "nah", "no", "cancel", "stop"}:
+            self._pending_contact_action = None
+            return f"Theek hai Boss, {pending.get('contact', '').title()} wala action cancel kar diya."
+
+        self._pending_contact_action = None
+        action = str(pending.get("action", "")).strip().lower()
+        contact = str(pending.get("contact", "")).strip()
+        if action == "block":
+            return self.block_contact(contact, confirmed=True)
+        if action == "unblock":
+            return self.unblock_contact(contact, confirmed=True)
+        return "Boss, pending WhatsApp action valid nahi tha."
+
+    def _extract_block_target(self, raw_command):
+        patterns = [
+            r"^(.+?)\s+ko\s+block(?:\s+kar|\s+kar do|\s+karna|\s+do)?$",
+            r"^block\s+(.+)$",
+            r"^(.+?)\s+block$",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, raw_command, re.IGNORECASE)
+            if match:
+                target = self._clean_target(match.group(1))
+                if target:
+                    return target
+        return ""
+
+    def _extract_unblock_target(self, raw_command):
+        patterns = [
+            r"^(.+?)\s+ko\s+unblock(?:\s+kar|\s+kar do|\s+karna|\s+do)?$",
+            r"^unblock\s+(.+)$",
+            r"^(.+?)\s+unblock$",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, raw_command, re.IGNORECASE)
+            if match:
+                target = self._clean_target(match.group(1))
+                if target:
+                    return target
+        return ""
+
+    def _advanced_controller_instance(self):
+        if self._advanced_controller is not None:
+            return self._advanced_controller
+        if WhatsAppController is None:
+            return None
+        try:
+            self._advanced_controller = WhatsAppController(contacts_file=self.contacts_file)
+        except Exception:
+            self._advanced_controller = None
+        return self._advanced_controller
+
     def add_contact(self, name, phone_number):
         normalized_name = " ".join(str(name).strip().split())
         normalized_number = re.sub(r"[^\d+]", "", str(phone_number).strip())
@@ -156,6 +261,38 @@ class WhatsAppAgent:
             return "Boss, abhi WhatsApp contacts empty hain. Use karo: add whatsapp contact Rahul 9876543210"
         names = ", ".join(sorted(name.title() for name in self.contacts))
         return f"Boss, saved WhatsApp contacts ye hain: {names}."
+
+    def block_contact(self, target, confirmed=False):
+        return self._change_contact_state("block", target, confirmed=confirmed)
+
+    def unblock_contact(self, target, confirmed=False):
+        return self._change_contact_state("unblock", target, confirmed=confirmed)
+
+    def _change_contact_state(self, action, target, confirmed=False):
+        contact_name = self._clean_target(target)
+        action_word = "block" if action == "block" else "unblock"
+        pretty_name = self._format_contact_name(contact_name)
+
+        if not contact_name:
+            return f"Boss, kis contact ko {action_word} karna hai wo clear nahi hai."
+
+        if not confirmed:
+            self._pending_contact_action = {"action": action, "contact": contact_name}
+            return f"Boss, kya tum '{pretty_name}' contact ko {action_word} karna chahte ho?"
+
+        try:
+            if not self._open_target_chat_desktop(contact_name):
+                return f"Mujhe '{pretty_name}' naam ka contact nahi mila"
+            if not self._open_contact_info_desktop(contact_name):
+                return "Boss, desktop WhatsApp me contact info open nahi ho pa raha."
+            if not self._click_contact_action_desktop(action, contact_name):
+                return f"Boss, desktop WhatsApp me '{pretty_name}' ko {action_word} option nahi mila."
+
+            if action == "block":
+                return f"'{pretty_name}' contact ko block kar diya 👍"
+            return f"'{pretty_name}' contact ab unblock ho gaya ✅"
+        except Exception as exc:
+            return f"Boss, {action_word} karte waqt desktop WhatsApp me issue aa gaya. {exc}"
 
     def open_whatsapp(self):
         try:
@@ -242,18 +379,31 @@ class WhatsAppAgent:
             return f"Boss, mujhe `{file_hint}` file nahi mili."
 
         try:
-            if self._open_target_chat_desktop(target) and self._launch_file_to_current_chat(file_path):
+            if self._open_target_chat_desktop(target) and self._send_attachment_to_current_chat(file_path, asset_type):
+                return self._attachment_success_message(asset_type)
+            if self._internet_available() and self._send_attachment_via_selenium(target, file_path, asset_type=asset_type):
                 return self._attachment_success_message(asset_type)
             return f"Boss, {target} ki chat khul gayi, lekin {asset_type} desktop WhatsApp se send nahi ho paya."
         except Exception as exc:
             return f"Boss, WhatsApp {asset_type} bhejte waqt issue aa gaya. {exc}"
+
+    def _send_attachment_to_current_chat(self, file_path, asset_type="file"):
+        self._focus_desktop_window()
+
+        if self._trigger_attachment_flow(file_path, asset_type=asset_type):
+            return True
+
+        if self._launch_file_to_current_chat(file_path):
+            return self._confirm_attachment_send_desktop(timeout_seconds=8)
+
+        return False
 
     def _detect_action(self, normalized):
         if "whatsapp" not in normalized and not any(
             token in normalized for token in ["send message", "send image", "send file", "send voice", "call "]
         ):
             return ""
-        if any(token in normalized for token in ["voice message", "voice note", "audio message"]):
+        if any(token in normalized for token in ["voice message", "voice msg", "voice note", "audio message", "audio msg"]):
             return "voice"
         if any(token in normalized for token in ["send image", "whatsapp image", "send photo", "send pic"]):
             return "image"
@@ -377,10 +527,14 @@ class WhatsAppAgent:
     def _extract_voice_payload(self, raw_command):
         patterns = [
             r"send voice message to\s+(.+?)\s+(.+)$",
+            r"send voice msg to\s+(.+?)\s+(.+)$",
             r"send whatsapp voice message to\s+(.+?)\s+(.+)$",
+            r"send whatsapp voice msg to\s+(.+?)\s+(.+)$",
             r"send whatsapp voice message\s+(.+?)\s+(.+)$",
+            r"send whatsapp voice msg\s+(.+?)\s+(.+)$",
             r"send whatsapp voice note\s+(.+?)\s+(.+)$",
             r"(.+?)\s+ko\s+whatsapp\s+voice\s+message\s+(?:send|bhej)(?:\s+kar|\s+kr)?(?:\s+do)?\s+(.+)$",
+            r"(.+?)\s+ko\s+whatsapp\s+voice\s+msg\s+(?:send|bhej)(?:\s+kar|\s+kr)?(?:\s+do)?\s+(.+)$",
         ]
         for pattern in patterns:
             match = re.search(pattern, raw_command, re.IGNORECASE)
@@ -660,6 +814,35 @@ class WhatsAppAgent:
         except Exception:
             return False
 
+    def _confirm_attachment_send_desktop(self, timeout_seconds=8):
+        deadline = time.time() + max(timeout_seconds, 2)
+        while time.time() < deadline:
+            self._focus_desktop_window()
+
+            if self._click_send_button_desktop(timeout_seconds=1.2):
+                time.sleep(0.7)
+                if self._find_send_button_desktop(timeout_seconds=0.8) is None:
+                    return True
+
+            composer = self._wait_for_composer_desktop(timeout_seconds=1.0)
+            if composer is not None:
+                if self._click_send_button_near_composer(composer):
+                    return True
+                if self._press_enter_and_verify_send(composer):
+                    return True
+
+            if pyautogui is not None:
+                try:
+                    pyautogui.press("enter")
+                    time.sleep(0.6)
+                    if self._find_send_button_desktop(timeout_seconds=0.6) is None:
+                        return True
+                except Exception:
+                    pass
+
+            time.sleep(0.35)
+        return False
+
     def _find_desktop_executable(self):
         configured_raw = os.getenv("MYRA_WHATSAPP_EXE", "").strip()
         if configured_raw:
@@ -802,6 +985,259 @@ class WhatsAppAgent:
             time.sleep(0.3)
         return False
 
+    def _open_contact_info_desktop(self, contact=""):
+        self._focus_desktop_window()
+        window = self._desktop_window(wait_seconds=6)
+        if window is None:
+            return False
+
+        direct_fragments = (
+            "conversation info",
+            "contact info",
+            "group info",
+            "view contact",
+            "profile details",
+            "chat info",
+        )
+        node = self._find_desktop_node_by_name(
+            direct_fragments,
+            root=window,
+            control_types={"Button", "Hyperlink", "MenuItem", "ListItem"},
+            depth=14,
+        )
+        if node is not None and self._click_desktop_node(node):
+            time.sleep(0.8)
+            return True
+
+        menu_button = self._find_desktop_node_by_name(
+            ("more options", "more", "menu"),
+            root=window,
+            control_types={"Button", "Hyperlink"},
+            depth=12,
+        )
+        if menu_button is not None and self._click_desktop_node(menu_button):
+            time.sleep(0.4)
+            node = self._find_desktop_node_by_name(
+                ("contact info", "view contact", "group info", "profile", "conversation info"),
+                root=window,
+                control_types={"MenuItem", "Button", "Hyperlink", "ListItem"},
+                depth=14,
+            )
+            if node is not None and self._click_desktop_node(node):
+                time.sleep(0.8)
+                return True
+
+        header_node = self._find_contact_header_node(contact, window=window)
+        if header_node is not None and self._click_desktop_node(header_node):
+            time.sleep(0.8)
+            return True
+
+        return False
+
+    def _click_contact_action_desktop(self, action, contact=""):
+        window = self._desktop_window(wait_seconds=6)
+        if window is None:
+            return False
+
+        fragments = self._contact_action_fragments(action, contact)
+        control_types = {"Button", "Hyperlink", "MenuItem", "ListItem", "Text"}
+        node = self._find_desktop_node_by_name(fragments, root=window, control_types=control_types, depth=15)
+        if node is None:
+            self._scroll_contact_panel_desktop(direction="down", steps=5)
+            window = self._desktop_window(wait_seconds=3)
+            if window is None:
+                return False
+            node = self._find_desktop_node_by_name(fragments, root=window, control_types=control_types, depth=16)
+        if node is None:
+            return False
+
+        if not self._click_desktop_node(node):
+            return False
+
+        time.sleep(0.6)
+        self._confirm_contact_action_dialog(action, contact=contact)
+        return True
+
+    def _confirm_contact_action_dialog(self, action, contact=""):
+        window = self._desktop_window(wait_seconds=3)
+        if window is None:
+            return False
+
+        fragments = self._contact_action_fragments(action, contact)
+        confirm_node = self._find_desktop_node_by_name(
+            fragments,
+            root=window,
+            control_types={"Button", "Hyperlink", "MenuItem"},
+            depth=14,
+        )
+        if confirm_node is None:
+            return False
+        return self._click_desktop_node(confirm_node)
+
+    def _scroll_contact_panel_desktop(self, direction="down", steps=4):
+        if pyautogui is None:
+            return False
+
+        window = self._desktop_window(wait_seconds=3)
+        if window is None:
+            return False
+
+        try:
+            rect = window.rectangle()
+            x = max(rect.left + 180, rect.right - 140)
+            y = int((rect.top + rect.bottom) / 2)
+            pyautogui.click(x, y)
+            time.sleep(0.2)
+            delta = -800 if direction == "down" else 800
+            for _ in range(max(steps, 1)):
+                pyautogui.scroll(delta)
+                time.sleep(0.3)
+            return True
+        except Exception:
+            return False
+
+    def _find_contact_header_node(self, contact, window=None):
+        contact_name = " ".join(str(contact).strip().lower().split())
+        if not contact_name:
+            return None
+
+        window = window or self._desktop_window(wait_seconds=4)
+        if window is None:
+            return None
+
+        try:
+            window_rect = window.rectangle()
+        except Exception:
+            window_rect = None
+
+        candidates = []
+        for node in self._desktop_nodes(window, depth=14):
+            node_type = self._node_type(node)
+            if node_type not in {"Button", "Hyperlink", "Text", "ListItem"}:
+                continue
+            node_name = " ".join(self._node_name(node).strip().lower().split())
+            if not node_name or contact_name not in node_name:
+                continue
+            score = 0
+            if window_rect is not None:
+                try:
+                    rect = node.rectangle()
+                    if rect.left >= window_rect.left + 220:
+                        score += 2
+                    if rect.top <= window_rect.top + max(220, int((window_rect.bottom - window_rect.top) * 0.32)):
+                        score += 2
+                except Exception:
+                    pass
+            candidates.append((score, node))
+
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
+
+    def _find_desktop_node_by_name(self, fragments, root=None, control_types=None, depth=12):
+        if isinstance(fragments, str):
+            fragments = (fragments,)
+        normalized_fragments = tuple(" ".join(str(item).strip().lower().split()) for item in fragments if str(item).strip())
+        if not normalized_fragments:
+            return None
+
+        search_root = root or self._desktop_window(wait_seconds=4)
+        if search_root is None:
+            return None
+
+        best_node = None
+        best_score = -1
+        for node in self._desktop_nodes(search_root, depth=depth):
+            node_type = self._node_type(node)
+            if control_types and node_type not in control_types:
+                continue
+            node_name = " ".join(self._node_name(node).strip().lower().split())
+            if not node_name:
+                continue
+            for fragment in normalized_fragments:
+                if fragment == node_name:
+                    score = 4
+                elif node_name.startswith(fragment):
+                    score = 3
+                elif fragment in node_name:
+                    score = 2
+                else:
+                    continue
+                if score > best_score:
+                    best_node = node
+                    best_score = score
+        return best_node
+
+    def _click_desktop_node(self, node):
+        if node is None:
+            return False
+
+        attempts = []
+        try:
+            attempts.append(node.click_input)
+        except Exception:
+            pass
+        try:
+            attempts.append(node.invoke)
+        except Exception:
+            pass
+
+        for action in attempts:
+            try:
+                action()
+                return True
+            except Exception:
+                continue
+
+        current = node
+        for _ in range(3):
+            try:
+                current = current.parent()
+            except Exception:
+                current = None
+            if current is None:
+                break
+            try:
+                current.click_input()
+                return True
+            except Exception:
+                try:
+                    current.invoke()
+                    return True
+                except Exception:
+                    continue
+        return False
+
+    def _contact_action_fragments(self, action, contact=""):
+        contact_name = " ".join(str(contact).strip().lower().split())
+        if action == "block":
+            fragments = ["block"]
+            if contact_name:
+                fragments.extend(
+                    [
+                        f"block {contact_name}",
+                        f"block {contact_name} contact",
+                    ]
+                )
+            return tuple(fragments)
+
+        fragments = ["unblock"]
+        if contact_name:
+            fragments.extend(
+                [
+                    f"unblock {contact_name}",
+                    f"unblock {contact_name} contact",
+                ]
+            )
+        return tuple(fragments)
+
+    def _format_contact_name(self, contact):
+        words = [part for part in str(contact).strip().split() if part]
+        if not words:
+            return ""
+        return " ".join(word[:1].upper() + word[1:] for word in words)
+
     def _wait_for_composer_desktop(self, target="", timeout_seconds=6):
         deadline = time.time() + max(timeout_seconds, 1)
         target_name = " ".join(str(target).strip().lower().split())
@@ -847,6 +1283,59 @@ class WhatsAppAgent:
             if document is None:
                 break
         return None
+
+    def _open_attachment_picker_desktop(self, timeout_seconds=4):
+        document = self._desktop_document(wait_seconds=3)
+        if document is not None:
+            for fragment in ("attach", "attachment", "add attachment", "plus", "clip"):
+                button = self._find_toolbar_button(document, fragment, timeout_seconds=0.8)
+                if button is None:
+                    continue
+                try:
+                    button.click_input()
+                    if self._wait_for_file_dialog(timeout_seconds=timeout_seconds) is not None:
+                        return True
+                except Exception:
+                    continue
+
+        if pyautogui is None:
+            return False
+
+        for shortcut in (("ctrl", "shift", "u"), ("ctrl", "u"), ("ctrl", "o")):
+            try:
+                pyautogui.hotkey(*shortcut)
+            except Exception:
+                continue
+            if Desktop is None:
+                time.sleep(1.0)
+                return True
+            if self._wait_for_file_dialog(timeout_seconds=timeout_seconds) is not None:
+                return True
+        return False
+
+    def _wait_for_file_dialog(self, timeout_seconds=4):
+        if Desktop is None:
+            return None
+
+        deadline = time.time() + max(timeout_seconds, 1)
+        while time.time() < deadline:
+            try:
+                for window in Desktop(backend="uia").windows():
+                    title = (window.window_text() or "").strip().lower()
+                    class_name = str(getattr(window.element_info, "class_name", "") or "").strip().lower()
+                    if self._looks_like_file_dialog(title, class_name):
+                        return window
+            except Exception:
+                pass
+            time.sleep(0.2)
+        return None
+
+    def _looks_like_file_dialog(self, title, class_name):
+        if class_name != "#32770":
+            return False
+        return title in {"open", "attach", "select", "choose file to send"} or any(
+            fragment in title for fragment in ("open", "attach", "choose", "select")
+        )
 
     def _focus_desktop_window(self):
         window = self._desktop_window(wait_seconds=3)
@@ -1202,27 +1691,37 @@ class WhatsAppAgent:
     def _trigger_attachment_flow(self, file_path, asset_type="file"):
         if pyautogui is None:
             return False
-        time.sleep(10)
+
+        self._focus_desktop_window()
+        if not self._open_attachment_picker_desktop(timeout_seconds=4):
+            return False
+
+        dialog = self._wait_for_file_dialog(timeout_seconds=2.5)
+        if dialog is not None:
+            try:
+                dialog.set_focus()
+            except Exception:
+                pass
+
+        time.sleep(0.6)
         if pyperclip is not None:
             pyperclip.copy(str(file_path))
-        pyautogui.hotkey("ctrl", "shift", "u")
-        time.sleep(1.4)
         if pyperclip is not None:
             pyautogui.hotkey("ctrl", "v")
         else:
             pyautogui.write(str(file_path), interval=0.01)
         time.sleep(0.6)
         pyautogui.press("enter")
-        time.sleep(1.2)
-        pyautogui.press("enter")
-        return True
+        time.sleep(1.4)
+        return self._confirm_attachment_send_desktop(timeout_seconds=8)
 
     def _synthesize_voice_message(self, message):
         safe_name = re.sub(r"[^a-z0-9]+", "_", message.lower())[:32].strip("_") or "voice_note"
         target = self.temp_dir / f"{safe_name}_{int(time.time())}.mp3"
         renderer = self._voice_renderer_instance()
         if renderer is not None and hasattr(renderer, "export_audio_file"):
-            exported = renderer.export_audio_file(message, target)
+            prepared = renderer.prepare_response(message) if hasattr(renderer, "prepare_response") else message
+            exported = renderer.export_audio_file(prepared, target)
             if exported is not None:
                 return Path(exported)
 

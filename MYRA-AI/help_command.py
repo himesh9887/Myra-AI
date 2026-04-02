@@ -22,6 +22,14 @@ show logs -> Show activity logs
 open netcontrol dashboard -> Open dashboard UI
 
 Study mode rule -> Sirf MYRA Dashboard, ChatGPT, aur VS Code allowed hain. Supported browser sirf ChatGPT aur localhost ke liye restricted rahega; baaki apps/sites block ya close ho jayenge.
+
+=== WhatsApp Commands ===
+
+open whatsapp -> Open WhatsApp
+love ko block kar do -> Ask confirmation and block Love on desktop WhatsApp
+rahul ko unblock kar do -> Ask confirmation and unblock Rahul on desktop WhatsApp
+mom ko message bhej hello -> Send "hello" to Mom on WhatsApp
+haan / nahi -> Confirm or cancel pending WhatsApp block/unblock action
 """.strip()
 
 

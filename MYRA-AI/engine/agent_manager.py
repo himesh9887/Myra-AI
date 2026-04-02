@@ -70,6 +70,12 @@ class AgentManager:
             if netcontrol_agent.should_claim_input(normalized):
                 return "netcontrol", netcontrol_agent
 
+        whatsapp_agent = self._agents.get("whatsapp")
+        if whatsapp_agent is not None and hasattr(whatsapp_agent, "whatsapp"):
+            inner = getattr(whatsapp_agent, "whatsapp", None)
+            if inner is not None and hasattr(inner, "can_claim_followup") and inner.can_claim_followup(normalized):
+                return "whatsapp", whatsapp_agent
+
         if self._looks_like_research(normalized):
             return "research", self._agents["research"]
         if self._looks_like_whatsapp(normalized):
@@ -192,7 +198,7 @@ class AgentManager:
             "minimize window",
             "maximize window",
         ]
-        return any(token in normalized for token in system_tokens)
+        return self._matches_any(normalized, system_tokens)
 
     def _looks_like_automation(self, normalized: str):
         automation_tokens = [
@@ -251,7 +257,17 @@ class AgentManager:
             "call ",
             "chat ",
         ]
-        return any(token in normalized for token in tokens)
+        if self._matches_any(normalized, tokens):
+            return True
+        patterns = (
+            r"^.+?\sko\s+block(?:\s+kar|\s+kar do|\s+karna|\s+do)?$",
+            r"^.+?\sko\s+unblock(?:\s+kar|\s+kar do|\s+karna|\s+do)?$",
+            r"^block\s+.+$",
+            r"^unblock\s+.+$",
+            r"^.+?\sko\s+(?:message|msg)\s+(?:bhej|send)(?:\s+do|\s+de|\s+kar do|\s+kar)?\s+.+$",
+            r"^(?:send|bhej)\s+(?:message|msg)\s+to\s+.+?\s+.+$",
+        )
+        return any(re.match(pattern, normalized, flags=re.IGNORECASE) for pattern in patterns)
 
     def _looks_like_download(self, normalized: str):
         return normalized.startswith("download ") or "download file" in normalized or "download from" in normalized
@@ -306,6 +322,17 @@ class AgentManager:
             re.search(r"^(?:open|launch|start|run|close|terminate)\s+.+$", normalized)
             or re.search(r"^.+\s+(?:open|close)$", normalized)
         )
+
+    def _matches_any(self, normalized: str, tokens):
+        text = str(normalized).lower()
+        for token in tokens:
+            value = str(token).strip().lower()
+            if not value:
+                continue
+            pattern = r"(?<!\w)" + re.escape(value).replace(r"\ ", r"\s+") + r"(?!\w)"
+            if re.search(pattern, text, flags=re.IGNORECASE):
+                return True
+        return False
 
     def _looks_like_direct_site_open(self, normalized: str):
         site_pattern = "|".join(sorted((re.escape(site) for site in self._browser_sites), key=len, reverse=True))
